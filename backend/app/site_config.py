@@ -20,6 +20,11 @@ def configured_frontend_base(db: Session) -> str:
     return (get_setting(db, "frontend_base_url", "") or "").strip()
 
 
+def configured_admin_api_base(db: Session) -> str:
+    """后台配置的「后台专属 API 地址」；未配置返回空字符串。"""
+    return (get_setting(db, "admin_api_base_url", "") or "").strip()
+
+
 def effective_api_base(db: Session, request=None) -> str:
     """实际生效的 API 基地址（用于前端 config.js、OAuth 回调地址）。"""
     value = configured_api_base(db)
@@ -34,3 +39,15 @@ def effective_frontend_base(db: Session) -> str:
     if value:
         return value.rstrip("/")
     return settings.frontend_base_url()
+
+
+def effective_admin_api_base(db: Session, request=None) -> str:
+    """后台管理端实际使用的 API 基地址。
+
+    优先使用「后台专属 API 地址」（便于在本地/内网直连、绕过域名与反向代理），
+    留空时回退为普通 API 站点地址的解析结果。
+    """
+    value = configured_admin_api_base(db)
+    if value:
+        return value.rstrip("/")
+    return effective_api_base(db, request)

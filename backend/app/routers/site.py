@@ -15,8 +15,10 @@ from backend.app.deps import get_current_admin
 from backend.app.schemas import SiteUpdate
 from backend.app.seed import get_bool_setting, get_setting, set_setting
 from backend.app.site_config import (
+    configured_admin_api_base,
     configured_api_base,
     configured_frontend_base,
+    effective_admin_api_base,
     effective_api_base,
     effective_frontend_base,
 )
@@ -67,9 +69,11 @@ def _site_admin(db: Session) -> dict:
     # 实际生效值（只读展示）
     data["resolved_api_base_url"] = data["api_base_url"]
     data["resolved_frontend_base_url"] = data["frontend_base_url"]
+    data["resolved_admin_api_base_url"] = effective_admin_api_base(db)
     # 后台配置值（可编辑，留空表示自动）
     data["api_base_url"] = configured_api_base(db)
     data["frontend_base_url"] = configured_frontend_base(db)
+    data["admin_api_base_url"] = configured_admin_api_base(db)
     data["robots_extra"] = get_setting(db, "robots_extra", "")
     return data
 

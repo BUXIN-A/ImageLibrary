@@ -358,6 +358,27 @@ table.table tbody tr:last-child td { border-bottom: none; }
 .result-item.ok { border-color: var(--color-success); }
 .result-item.fail { border-color: var(--color-danger); }
 
+/* ---------------------------- 上传进度 ---------------------------- */
+.upload-progress { margin-top: var(--space-3); }
+.upload-progress__bar {
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--color-surface-2);
+  overflow: hidden;
+}
+.upload-progress__fill {
+  height: 100%;
+  width: 0;
+  background-color: var(--color-primary);
+  transition: width 150ms linear;
+}
+.upload-progress__text {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.upload-progress.is-done .upload-progress__fill { background-color: var(--color-success); }
+
 /* ---------------------------- 标签 ---------------------------- */
 .tag-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .tag-chip {

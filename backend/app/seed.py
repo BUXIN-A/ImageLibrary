@@ -34,6 +34,8 @@ def _default_settings() -> dict[str, str]:
         # ---------- 站点地址（留空则按 PUBLIC_HOST / 请求主机自动推断） ----------
         "api_base_url": "",
         "frontend_base_url": "",
+        # 后台专属 API 地址：留空则与 api_base_url 相同（用于后台本地/内网快速上传）
+        "admin_api_base_url": "",
         # ---------- 登录配置 ----------
         "login_local_enabled": "true",
         "login_github_enabled": "false",

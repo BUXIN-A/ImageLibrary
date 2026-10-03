@@ -14,7 +14,11 @@ from backend.app.database import get_db
 from backend.app.models import Folder, Image
 from backend.app.routers.site import favicon_file_path
 from backend.app.seed import get_bool_setting, get_setting
-from backend.app.site_config import effective_api_base, effective_frontend_base
+from backend.app.site_config import (
+    effective_admin_api_base,
+    effective_api_base,
+    effective_frontend_base,
+)
 
 
 def _robots_text(db: Session) -> str:
@@ -93,17 +97,18 @@ def _register_site_routes(app: FastAPI) -> None:
         return FileResponse(path)
 
 
-def _register_config_route(app: FastAPI) -> None:
+def _register_config_route(app: FastAPI, admin_config: bool = False) -> None:
     """注册动态 ``/js/config.js``（在 mount("/") 之前），按访问主机自动生成 API 地址。
 
     这样无论以 localhost、服务器 IP 还是域名访问，前端都能指向正确的 API 端口，
-    无需在构建镜像时写死地址。
+    无需在构建镜像时写死地址。admin_config=True（后台站点）时优先使用
+    「后台专属 API 地址」，便于本地/内网快速上传而不走域名。
     """
 
     @app.get("/js/config.js")
     def config_js(request: Request, db: Session = Depends(get_db)) -> Response:
         """返回前端运行时配置（API 基地址）。"""
-        base = effective_api_base(db, request)
+        base = effective_admin_api_base(db, request) if admin_config else effective_api_base(db, request)
         body = (
             "/* 由后端动态生成：自动适配访问主机与 API 端口 */\n"
             "(function () {\n"
@@ -117,15 +122,18 @@ def _register_config_route(app: FastAPI) -> None:
         )
 
 
-def create_static_app(directory: str, site_routes: bool = False) -> FastAPI:
+def create_static_app(
+    directory: str, site_routes: bool = False, admin_config: bool = False
+) -> FastAPI:
     """创建一个托管指定目录静态文件的 FastAPI 应用。
 
     html=True 支持首页与目录索引；动态 ``/js/config.js`` 始终注册（优先于静态文件）；
-    site_routes=True 时额外注册前台动态路由（robots.txt、sitemap.xml、favicon.ico）。
+    site_routes=True 时额外注册前台动态路由（robots.txt、sitemap.xml、favicon.ico）；
+    admin_config=True 时 config.js 使用「后台专属 API 地址」（留空回退普通地址）。
     """
     Path(directory).mkdir(parents=True, exist_ok=True)
     app = FastAPI(title=f"Static: {Path(directory).name}")
-    _register_config_route(app)
+    _register_config_route(app, admin_config=admin_config)
     if site_routes:
         _register_site_routes(app)
     app.mount("/", StaticFiles(directory=directory, html=True), name="static")

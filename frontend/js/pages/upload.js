@@ -4,6 +4,37 @@
 
   var files = [];
   var tokenInput, validateBtn, tokenResult, dropzone, fileInput, fileList, uploadBtn, clearBtn, uploadResultEl;
+  var progressEl, progressFillEl, progressTextEl;
+
+  /** 显示进度条并重置状态。 */
+  function showProgress() {
+    if (!progressEl) return;
+    progressEl.classList.remove('hidden', 'is-done');
+    progressFillEl.style.width = '0%';
+    progressTextEl.textContent = '准备上传…';
+  }
+
+  /** 更新上传进度（按字节）。上传完成后进入"服务器处理中"状态。 */
+  function updateProgress(loaded, total) {
+    if (!progressEl) return;
+    var percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
+    progressFillEl.style.width = percent + '%';
+    progressTextEl.textContent = percent >= 100
+      ? '上传完成，服务器处理中…'
+      : '已上传 ' + percent + '%（' + UI.formatSize(loaded) + ' / ' + UI.formatSize(total) + '）';
+  }
+
+  /** 上传结束：成功标记为完成，失败保留进度并提示原因。 */
+  function finishProgress(text, isError) {
+    if (!progressEl) return;
+    if (isError) {
+      progressEl.classList.remove('is-done');
+    } else {
+      progressFillEl.style.width = '100%';
+      progressEl.classList.add('is-done');
+    }
+    progressTextEl.textContent = text;
+  }
 
   function renderTokenResult(html, type) {
     tokenResult.innerHTML = html
@@ -109,15 +140,18 @@
     uploadBtn.disabled = true;
     uploadBtn.textContent = '上传中…';
     uploadResultEl.innerHTML = '';
+    showProgress();
 
     try {
-      var data = await API.postForm('/api/credential/upload', formData);
+      var data = await API.postFormWithProgress('/api/credential/upload', formData, updateProgress);
+      finishProgress('上传完成：成功 ' + (data.success || 0) + ' 个，失败 ' + (data.failed || 0) + ' 个', false);
       renderUploadResults(data);
       UI.toast(data.message || '已提交，等待管理员审核', data.failed ? 'warning' : 'success');
       // 上传成功后清空文件，便于继续上传
       files = [];
       renderFileList();
     } catch (e) {
+      finishProgress('上传失败：' + (e.message || '未知错误'), true);
       if (e.status === 429) {
         uploadResultEl.innerHTML = '<div class="alert alert--error">上传过于频繁，请稍后再试</div>';
         UI.toast('上传过于频繁，请稍后再试', 'error');
@@ -141,6 +175,9 @@
     uploadBtn = document.getElementById('upload-btn');
     clearBtn = document.getElementById('clear-btn');
     uploadResultEl = document.getElementById('upload-result');
+    progressEl = document.getElementById('upload-progress');
+    progressFillEl = document.getElementById('upload-progress-fill');
+    progressTextEl = document.getElementById('upload-progress-text');
 
     await Layout.init('upload');
 

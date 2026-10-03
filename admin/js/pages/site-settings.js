@@ -16,8 +16,10 @@
     els.footerText = document.getElementById("footer-text");
     els.apiBaseUrl = document.getElementById("api-base-url");
     els.frontendBaseUrl = document.getElementById("frontend-base-url");
+    els.adminApiBaseUrl = document.getElementById("admin-api-base-url");
     els.apiBaseResolved = document.getElementById("api-base-resolved");
     els.frontendBaseResolved = document.getElementById("frontend-base-resolved");
+    els.adminApiBaseResolved = document.getElementById("admin-api-base-resolved");
     els.robotsUrl = document.getElementById("robots-url");
     els.sitemapUrl = document.getElementById("sitemap-url");
     els.robotsLink = document.getElementById("robots-link");
@@ -51,8 +53,10 @@
   function setResolved(data) {
     data = data || {};
     var apiBase = data.resolved_api_base_url || data.api_base_url || "";
+    var adminApiBase = data.resolved_admin_api_base_url || apiBase;
     var frontendBase = (data.resolved_frontend_base_url || data.frontend_base_url || "").replace(/\/$/, "");
     els.apiBaseResolved.textContent = apiBase || "-";
+    els.adminApiBaseResolved.textContent = adminApiBase || "-";
     els.frontendBaseResolved.textContent = frontendBase || "-";
     if (frontendBase) {
       var robotsUrl = frontendBase + "/robots.txt";
@@ -73,6 +77,7 @@
     els.footerText.value = data.footer_text || "";
     els.apiBaseUrl.value = data.api_base_url || "";
     els.frontendBaseUrl.value = data.frontend_base_url || "";
+    els.adminApiBaseUrl.value = data.admin_api_base_url || "";
     els.allowIndex.checked = data.allow_index !== false;
     els.robotsExtra.value = data.robots_extra || "";
     els.sitemapEnabled.checked = data.sitemap_enabled !== false;
@@ -105,6 +110,7 @@
           footer_text: els.footerText.value.trim(),
           api_base_url: els.apiBaseUrl.value.trim(),
           frontend_base_url: els.frontendBaseUrl.value.trim(),
+          admin_api_base_url: els.adminApiBaseUrl.value.trim(),
           allow_index: els.allowIndex.checked,
           robots_extra: els.robotsExtra.value,
           sitemap_enabled: els.sitemapEnabled.checked,

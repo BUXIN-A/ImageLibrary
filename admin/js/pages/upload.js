@@ -25,6 +25,39 @@
     els.resultCard = document.getElementById("result-card");
     els.resultList = document.getElementById("result-list");
     els.resultSummary = document.getElementById("result-summary");
+    els.progress = document.getElementById("upload-progress");
+    els.progressFill = document.getElementById("upload-progress-fill");
+    els.progressText = document.getElementById("upload-progress-text");
+  }
+
+  /** 显示进度条并重置状态。 */
+  function showProgress() {
+    if (!els.progress) return;
+    els.progress.classList.remove("hidden", "is-done");
+    els.progressFill.style.width = "0%";
+    els.progressText.textContent = "准备上传…";
+  }
+
+  /** 更新上传进度（按字节）。上传完成后进入"服务器处理中"状态。 */
+  function updateProgress(loaded, total) {
+    if (!els.progress) return;
+    var percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
+    els.progressFill.style.width = percent + "%";
+    els.progressText.textContent = percent >= 100
+      ? "上传完成，服务器处理中…"
+      : "已上传 " + percent + "%（" + UI.formatSize(loaded) + " / " + UI.formatSize(total) + "）";
+  }
+
+  /** 上传结束：成功标记为完成，失败保留进度并提示原因。 */
+  function finishProgress(text, isError) {
+    if (!els.progress) return;
+    if (isError) {
+      els.progress.classList.remove("is-done");
+    } else {
+      els.progressFill.style.width = "100%";
+      els.progress.classList.add("is-done");
+    }
+    els.progressText.textContent = text;
   }
 
   /** 合并新选择的文件（按 name+size 去重）。 */
@@ -97,15 +130,21 @@
     if (tags) fd.append("tags", tags);
     if (folderId) fd.append("folder_id", folderId);
 
+    showProgress();
+
     try {
-      var data = await API.postForm("/api/admin/images", fd);
+      var data = await API.postFormWithProgress("/api/admin/images", fd, updateProgress);
+      var success = (data && data.success) || 0;
+      var failed = (data && data.failed) || 0;
+      finishProgress("上传完成：成功 " + success + " 张，失败 " + failed + " 张", false);
       renderResults(data || { results: [], success: 0, failed: 0 });
-      UI.toast("上传完成：成功 " + (data.success || 0) + "，失败 " + (data.failed || 0),
-        (data.failed || 0) > 0 ? "warning" : "success");
+      UI.toast("上传完成：成功 " + success + "，失败 " + failed,
+        failed > 0 ? "warning" : "success");
       state.files = [];
       renderFileList();
       els.fileInput.value = "";
     } catch (err) {
+      finishProgress("上传失败：" + (err.message || "未知错误"), true);
       UI.toast(err.message || "上传失败", "error");
     } finally {
       els.uploadBtn.disabled = state.files.length === 0;

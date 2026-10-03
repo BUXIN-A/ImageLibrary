@@ -36,7 +36,7 @@ def _print_banner() -> None:
 def main() -> None:
     """启动三个服务：前台/后台静态站运行于守护线程，API 运行于主线程。"""
     frontend_app = create_static_app(str(ROOT / "frontend"), site_routes=True)
-    admin_app = create_static_app(str(ROOT / "admin"))
+    admin_app = create_static_app(str(ROOT / "admin"), admin_config=True)
 
     threading.Thread(
         target=_serve,

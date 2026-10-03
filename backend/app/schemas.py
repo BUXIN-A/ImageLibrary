@@ -310,6 +310,8 @@ class SiteUpdate(BaseModel):
     # 站点地址：留空表示自动推断（PUBLIC_HOST 或访问主机）
     api_base_url: Optional[str] = None
     frontend_base_url: Optional[str] = None
+    # 后台专属 API 地址：留空则与 api_base_url 相同
+    admin_api_base_url: Optional[str] = None
 
 
 # ---------------- 登录配置 ----------------

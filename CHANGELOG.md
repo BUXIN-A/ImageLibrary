@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-03
+
+### Added
+
+- **上传进度展示**：后台上传与前台凭证上传均使用 `XMLHttpRequest` 上报进度，界面显示实时进度条（百分比 + 已上传/总字节），传输完成后提示「服务器处理中…」，失败时保留进度并显示原因。
+- **后台专属 API 站点地址**（`admin_api_base_url`）：后台「站点设置 → 站点地址」可单独配置，留空则与普通 API 站点地址相同；用于后台本地/内网直连上传，绕过域名与反向代理。
+
+### Changed
+
+- 后台静态站点的 `js/config.js` 改为使用「后台专属 API 地址」（未配置时回退普通地址），前台不受影响。
+- `create_static_app()` 新增 `admin_config` 参数以区分前台与后台的 API 地址解析来源。
+
 ## [1.1.1] - 2026-10-03
 
 ### Fixed
@@ -43,7 +55,8 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/BUXIN-A/ImageLibrary/releases/tag/v1.0.0

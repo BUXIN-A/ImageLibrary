@@ -115,6 +115,54 @@
   }
 
   /**
+   * 带进度的表单上传（FormData）。
+   * fetch 无法获取上传进度，故使用 XMLHttpRequest。
+   * @param {string} path 接口路径
+   * @param {FormData} formData 表单数据
+   * @param {(loaded:number,total:number)=>void} [onProgress] 上传进度回调（字节）
+   * @returns {Promise<object|null>} 解析后的 JSON 响应
+   */
+  function postFormWithProgress(path, formData, onProgress) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', apiUrl(path), true);
+      var token = getUserToken();
+      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+
+      if (xhr.upload && typeof onProgress === 'function') {
+        xhr.upload.onprogress = function (e) {
+          if (e.lengthComputable) onProgress(e.loaded, e.total);
+        };
+      }
+
+      xhr.onload = function () {
+        var data = null;
+        try {
+          data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } catch (e) {
+          data = null;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data);
+          return;
+        }
+        var message = (data && typeof data.detail === 'string' && data.detail) ||
+          ('请求失败（' + xhr.status + '）');
+        var err = new Error(message);
+        err.status = xhr.status;
+        err.data = data;
+        reject(err);
+      };
+      xhr.onerror = function () {
+        var netErr = new Error('无法连接服务器，请确认后端服务已启动');
+        netErr.status = 0;
+        reject(netErr);
+      };
+      xhr.send(formData);
+    });
+  }
+
+  /**
    * 下载：
    * - 传入字符串路径：直接跳转下载（适用于下载原图等 GET 接口）。
    * - 传入 Response：读取 blob 并触发浏览器下载（适用于批量导出 ZIP）。
@@ -151,6 +199,7 @@
     get: get,
     postJSON: postJSON,
     postForm: postForm,
+    postFormWithProgress: postFormWithProgress,
     download: download
   };
 })();

@@ -56,6 +56,12 @@
         <p class="muted">支持 jpg / png / gif / webp / bmp，可多选</p>
       </div>
       <ul id="file-list" class="file-list"></ul>
+      <div id="upload-progress" class="upload-progress hidden">
+        <div class="upload-progress__bar">
+          <div id="upload-progress-fill" class="upload-progress__fill"></div>
+        </div>
+        <div id="upload-progress-text" class="upload-progress__text">准备上传…</div>
+      </div>
       <div class="panel__actions">
         <button id="upload-btn" class="btn btn--primary" type="button" disabled>开始上传</button>
         <button id="clear-btn" class="btn btn--ghost" type="button">清空</button>

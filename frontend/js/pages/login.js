@@ -160,12 +160,20 @@
     });
   }
 
+  /** 登录方式加载失败（网络 / 跨域）：保留账号密码表单并给出可诊断的提示。 */
+  function renderProvidersError(message) {
+    var host = document.getElementById('providers');
+    if (!host) return;
+    var hint = message || '无法连接 API，请检查「站点设置 → 站点地址」与跨域(CORS)配置';
+    host.innerHTML = '<p class="muted text-center">登录方式加载失败：' + UI.escapeHtml(hint) + '</p>';
+  }
+
   async function loadProviders() {
     try {
       var providers = await API.get('/api/auth/providers');
       renderProviders(providers);
     } catch (e) {
-      renderProviders([]);
+      renderProvidersError(e && e.message);
     }
   }
 

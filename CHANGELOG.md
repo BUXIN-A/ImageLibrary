@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-03
+
+### Fixed
+
+- **修复跨域（CORS）导致前台请求 API 全部失败**：反向代理到标准 80/443 时 `Origin` 头不带端口（如 `https://gallery.example.com`），原有的「主机:端口」正则无法匹配，浏览器拦截所有 API 请求；现默认放行任意 `http/https` 来源（含带端口与不带端口）。
+- 修复登录页在 `/api/auth/providers` 请求失败时误显示「暂无可用登录方式」的问题：改为展示可诊断的失败原因，并保留账号密码表单。
+
+### Added
+
+- 新增配置项 `CORS_ALLOW_ALL_ORIGINS`（默认 `true`）：设为 `false` 时仅放行 `CORS_ORIGINS` 中显式列出的来源。
+
 ## [1.1.0] - 2026-10-03
 
 ### Added
@@ -32,6 +43,7 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/BUXIN-A/ImageLibrary/releases/tag/v1.0.0

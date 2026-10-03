@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # ---------- 额外允许的跨域来源（逗号分隔，如 https://gallery.example.com） ----------
     CORS_ORIGINS: str = ""
 
+    # 是否放行任意来源跨域（默认 true）。
+    # 反向代理到 80/443 时 Origin 头不带端口（如 https://gallery.buxin.us.kg），
+    # 固定的"主机:端口"白名单无法覆盖；又因本项目鉴权使用 Authorization 头（Bearer）
+    # 而非 Cookie，放宽来源不会造成越权。设为 false 时仅放行 cors_origins() 中的显式来源。
+    CORS_ALLOW_ALL_ORIGINS: bool = True
+
     def api_base_url(self) -> str:
         """API 对外基地址：优先 PUBLIC_HOST，其次 API_BASE_URL。"""
         if self.PUBLIC_HOST:
@@ -121,11 +127,14 @@ class Settings(BaseSettings):
         return list(dict.fromkeys(origins))
 
     def cors_origin_regex(self) -> str:
-        """允许任意主机在前后台端口上的跨域访问（便于以服务器 IP/域名直连）。
+        """返回放行跨域的正则：默认匹配任意 http/https 来源（含带端口与不带端口）。
 
-        本项目鉴权使用 Authorization 头（Bearer），不使用 Cookie，故放宽来源仍然安全。
+        使用正则而非 ``allow_origins=["*"]``，Starlette 会回显具体来源，
+        因此与 ``allow_credentials=True`` 兼容。
         """
-        return rf"^https?://[^/]+:(?:{self.FRONTEND_PORT}|{self.ADMIN_PORT})$"
+        if not self.CORS_ALLOW_ALL_ORIGINS:
+            return ""
+        return r"^https?://[^/]+$"
 
     def ensure_dirs(self) -> None:
         """确保数据目录存在。"""

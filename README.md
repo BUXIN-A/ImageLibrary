@@ -1,6 +1,6 @@
 # ImageLibrary 公开图库系统
 
-> 当前版本：**v1.1.0** ｜ 变更记录见 [CHANGELOG.md](CHANGELOG.md)
+> 当前版本：**v1.1.1** ｜ 变更记录见 [CHANGELOG.md](CHANGELOG.md)
 
 一个可公开访问的图片图库系统：**访客无需登录**即可浏览、搜索、查看详情、下载与批量导出图片；**管理员**通过独立端口的后台完成上传与维护；**普通用户**可自行注册登录，参与图片评论；**他人**还可凭管理员发放的「上传 Token」上传图片，经审核通过后公开。前后端分离，前台与后台各自独立端口，图片按多级分类文件夹组织，并提供多套可自定义的主题（内置 + 自定义 ZIP 主题包）。
 
@@ -172,10 +172,11 @@ ImageLibrary/
 | `PUBLIC_HOST` | `PUBLIC_HOST` | 空 | **远程部署时填写服务器 IP 或域名**；设置后分享链接、OAuth 回调、前端 API 地址与 CORS 均以它为准 |
 | `PUBLIC_SCHEME` | `PUBLIC_SCHEME` | `http` | 对外协议（使用 HTTPS 反向代理时设为 `https`） |
 | `CORS_ORIGINS` | `CORS_ORIGINS` | 空 | 额外允许的跨域来源，逗号分隔（如 `https://gallery.example.com`） |
+| `CORS_ALLOW_ALL_ORIGINS` | `CORS_ALLOW_ALL_ORIGINS` | `true` | 是否放行任意来源跨域；设为 `false` 时仅放行 `CORS_ORIGINS` 中列出的来源 |
 
 > 说明：
 > - `ADMIN_USERNAME` / `ADMIN_PASSWORD` 默认只在 **数据库首次初始化**（admins 表为空）时生效；若希望每次启动都用环境变量覆盖已有管理员，设置 `ADMIN_FORCE_SYNC=true`。
-> - CORS 允许来源由 `FRONTEND_PORT` 与 `ADMIN_PORT` 推导（`127.0.0.1` / `localhost`），并**默认额外允许任意主机在前后台端口上的访问**（便于以服务器 IP/域名直连）；如需严格限制，设置 `CORS_ORIGINS` 或改用反向代理。
+> - CORS 默认**放行任意来源**（`CORS_ALLOW_ALL_ORIGINS=true`），以兼容反向代理到 80/443、`Origin` 不带端口的场景；鉴权使用 Authorization 头（Bearer）而非 Cookie，放宽来源不会造成越权。如需严格限制，设置 `CORS_ALLOW_ALL_ORIGINS=false` 并用 `CORS_ORIGINS` 列出允许来源。
 > - 前端 `js/config.js` 由后端**动态生成**：未设置 `PUBLIC_HOST` 时按访问者所用主机名自动推断 API 地址，因此以服务器 IP/域名访问无需改动任何前端文件。
 > - **站点级配置**（站点名称、SEO、favicon、robots、sitemap、页脚、评论开关）与**登录配置**（本地 / GitHub / 通用 OAuth2）存储于数据库 `settings` 表，可在后台页面维护，**无需改 `.env`**；`seed.py` 在首次建库时写入其默认值。
 > - 修改了 API 端口时，请同步更新 `API_BASE_URL`（OAuth 回调地址由它生成），回调地址必须与第三方平台中登记的地址完全一致。
@@ -550,7 +551,7 @@ API 基础地址：`http://127.0.0.1:8080`。除特别标注外均为公开接�
 在项目根目录 `.env` 中修改 `FRONTEND_PORT`、`ADMIN_PORT`、`API_PORT`（以及 `FRONTEND_BASE_URL`、`API_BASE_URL` 保持一致），然后重启。若端口冲突，启动时会在对应服务处报错。
 
 **Q2：前台/后台请求 API 报 CORS 错误？**
-CORS 默认允许 `127.0.0.1` / `localhost`，以及**任意主机在前后台端口上的访问**（便于以服务器 IP/域名直连），并可通过 `CORS_ORIGINS` 追加来源。若使用反向代理把前台映射到 80/443，请把该域名加入 `CORS_ORIGINS`。
+CORS 默认**放行任意 http/https 来源**（含不带端口的标准 80/443 域名，如 `https://gallery.buxin.us.kg`），反向代理场景无需额外配置。若需收紧，设置 `CORS_ALLOW_ALL_ORIGINS=false` 并用 `CORS_ORIGINS` 显式列出允许来源（逗号分隔，需带协议，非标准端口需带端口）。
 
 **Q3：上传时返回 429 / 「上传过于频繁，请稍后再试」？**
 触发了凭证上传的 IP 限流（默认 60 秒内最多 20 次）。等待窗口结束后重试，或调整 `RATE_LIMIT_MAX_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS`。

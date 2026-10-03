@@ -66,25 +66,30 @@
           <div class="card">
             <div class="card-header"><span>站点地址</span></div>
             <div class="card-body">
+              <div class="form-hint">
+                站点地址用于生成接口地址、分享链接与 OAuth 回调。为避免填错导致<strong>无法进入后台</strong>，
+                以下三项为只读，请通过「设置站点地址」按钮修改：保存前会先用当前浏览器探测新地址是否可用，探测通过才会写入。
+              </div>
               <div class="form-field">
                 <label for="api-base-url">API 站点地址</label>
-                <input class="input" id="api-base-url" type="text" placeholder="留空自动，例如 http://192.168.1.10:8080">
-                <div class="form-hint">用于生成前端请求地址与 OAuth 回调地址；当前生效：<code id="api-base-resolved">-</code></div>
+                <input class="input" id="api-base-url" type="text" readonly>
+                <div class="form-hint">用于生成前端请求地址与 OAuth 回调地址；留空=自动；当前生效：<code id="api-base-resolved">-</code></div>
               </div>
               <div class="form-field">
                 <label for="frontend-base-url">前台站点地址</label>
-                <input class="input" id="frontend-base-url" type="text" placeholder="留空自动，例如 http://192.168.1.10:8000">
-                <div class="form-hint">用于生成分享链接、sitemap 与登录回跳；当前生效：<code id="frontend-base-resolved">-</code></div>
+                <input class="input" id="frontend-base-url" type="text" readonly>
+                <div class="form-hint">用于生成分享链接、sitemap 与登录回跳；留空=自动；当前生效：<code id="frontend-base-resolved">-</code></div>
               </div>
               <div class="form-field">
                 <label for="admin-api-base-url">后台专属 API 站点地址</label>
-                <input class="input" id="admin-api-base-url" type="text" placeholder="留空则与上面的 API 站点地址相同">
-                <div class="form-hint">
-                  仅后台使用：可填本地/内网地址（如 <code>http://127.0.0.1:8080</code> 或 <code>http://192.168.1.10:8080</code>），
-                  以便快速上传、绕过域名与反向代理；当前生效：<code id="admin-api-base-resolved">-</code>
-                </div>
+                <input class="input" id="admin-api-base-url" type="text" readonly>
+                <div class="form-hint">仅后台使用，留空=与 API 站点地址相同；当前生效：<code id="admin-api-base-resolved">-</code></div>
               </div>
-              <div class="form-hint">留空时自动按 <code>PUBLIC_HOST</code> 环境变量或访问者主机名推断，通常无需填写。填写后需重新保存并刷新页面生效；注意浏览器要求协议一致（HTTPS 页面无法请求 HTTP 接口）。</div>
+              <div class="flex items-center gap-md flex-wrap">
+                <button type="button" class="btn btn-primary" id="addr-set-btn">设置站点地址</button>
+                <button type="button" class="btn btn-outline" id="addr-clear-btn">清除站点地址</button>
+              </div>
+              <div class="form-hint mt-sm">留空时按 <code>PUBLIC_HOST</code> 环境变量或访问者主机名自动推断。注意浏览器要求协议一致（HTTPS 页面无法请求 HTTP 接口）。</div>
             </div>
           </div>
 

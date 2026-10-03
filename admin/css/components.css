@@ -379,6 +379,13 @@ table.table tbody tr:last-child td { border-bottom: none; }
 }
 .upload-progress.is-done .upload-progress__fill { background-color: var(--color-success); }
 
+/* 只读输入框（如站点地址，需通过专门按钮修改） */
+.input[readonly] {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
 /* ---------------------------- 标签 ---------------------------- */
 .tag-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .tag-chip {

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """站点设置路由：公开站点信息/图标 + 管理端读写站点设置与上传图标。"""
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -12,7 +13,9 @@ from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
-from backend.app.schemas import SiteUpdate
+from backend.app.models import Admin
+from backend.app.schemas import SiteAddressUpdate, SiteUpdate
+from backend.app.security import verify_password
 from backend.app.seed import get_bool_setting, get_setting, set_setting
 from backend.app.site_config import (
     configured_admin_api_base,
@@ -35,6 +38,15 @@ admin_router = APIRouter(
 _FAVICON_MAX_SIZE = 2 * 1024 * 1024
 # 允许作为 favicon 存储的扩展名（其余统一按 .png 保存）
 _FAVICON_EXTS = {".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+# 站点地址设置：目标 -> 设置键
+_ADDRESS_TARGETS = {
+    "api": "api_base_url",
+    "admin": "admin_api_base_url",
+    "frontend": "frontend_base_url",
+}
+# 站点地址格式：http(s)://主机[:端口]，不允许路径
+_ADDRESS_RE = re.compile(r"^https?://[^\s/]+(:\d+)?$")
 
 
 def favicon_file_path() -> Optional[Path]:
@@ -115,6 +127,37 @@ def update_site_settings(payload: SiteUpdate, db: Session = Depends(get_db)) -> 
             set_setting(db, key, "true" if value else "false")
         else:
             set_setting(db, key, value)
+    return _site_admin(db)
+
+
+@admin_router.post("/address")
+def set_site_address(payload: SiteAddressUpdate, db: Session = Depends(get_db)) -> dict:
+    """设置或清除站点地址。
+
+    为降低「填错地址导致无法进入后台」的风险，本接口在 JWT 之外**再次校验管理员
+    账号与密码**（二次确认），且前端会在保存前先探测新地址是否可用。
+    ``base_url`` 为空表示清除所选目标、恢复自动推断。
+    """
+    admin = db.query(Admin).first()
+    if (
+        admin is None
+        or admin.username != payload.username
+        or not verify_password(payload.password, admin.password_hash)
+    ):
+        raise HTTPException(status_code=401, detail="管理员账号或密码错误")
+
+    keys = [_ADDRESS_TARGETS[item] for item in payload.targets if item in _ADDRESS_TARGETS]
+    if not keys:
+        raise HTTPException(status_code=400, detail="请至少选择一个设置目标")
+
+    value = (payload.base_url or "").strip().rstrip("/")
+    if value and not _ADDRESS_RE.match(value):
+        raise HTTPException(
+            status_code=400, detail="地址格式不正确，应为 http(s)://IP或域名[:端口]"
+        )
+
+    for key in keys:
+        set_setting(db, key, value)
     return _site_admin(db)
 
 

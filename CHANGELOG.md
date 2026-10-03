@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-03
+
+### Added
+
+- **站点地址专用设置流程**：后台「站点设置 → 站点地址」的三项地址改为只读，统一通过「设置站点地址」按钮弹窗修改。
+  - 弹窗内可选择设置目标（API 站点地址 / 后台专属 API 地址 / 前台站点地址，可多选）。
+  - 需输入管理员账户与密码，后端二次校验，避免误操作。
+  - 保存前先用当前浏览器探测新地址：API 类地址请求 `/api/health`（同时验证连通性与跨域），前台地址仅探测可达性；**探测失败即取消保存、不改动原配置**。
+  - 新增「清除站点地址」按钮：一键清除三项并恢复自动推断（同样需要账号密码）。
+- 新增接口 `POST /api/admin/site/address`（设置/清除站点地址，需管理员账号密码二次校验）。
+
+### Changed
+
+- 站点地址不再随「保存设置」主表单提交，避免误改导致后台失联；主表单仅保留普通站点设置字段。
+
 ## [1.2.0] - 2026-10-03
 
 ### Added
@@ -55,7 +70,8 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.0.0...v1.1.0

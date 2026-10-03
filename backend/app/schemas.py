@@ -314,6 +314,19 @@ class SiteUpdate(BaseModel):
     admin_api_base_url: Optional[str] = None
 
 
+class SiteAddressUpdate(BaseModel):
+    """设置/清除站点地址请求（需二次校验管理员账号密码）。
+
+    ``targets`` 取值：``api``（API 站点地址）、``admin``（后台专属 API 地址）、
+    ``frontend``（前台站点地址）；``base_url`` 为空表示清除所选目标（恢复自动推断）。
+    """
+
+    targets: list[str] = []
+    base_url: Optional[str] = None
+    username: str
+    password: str
+
+
 # ---------------- 登录配置 ----------------
 class LoginSettingsUpdate(BaseModel):
     """更新登录配置请求。

@@ -1,6 +1,6 @@
 # ImageLibrary 公开图库系统
 
-> 当前版本：**v1.2.0** ｜ 变更记录见 [CHANGELOG.md](CHANGELOG.md)
+> 当前版本：**v1.2.1** ｜ 变更记录见 [CHANGELOG.md](CHANGELOG.md)
 
 一个可公开访问的图片图库系统：**访客无需登录**即可浏览、搜索、查看详情、下载与批量导出图片；**管理员**通过独立端口的后台完成上传与维护；**普通用户**可自行注册登录，参与图片评论；**他人**还可凭管理员发放的「上传 Token」上传图片，经审核通过后公开。前后端分离，前台与后台各自独立端口，图片按多级分类文件夹组织，并提供多套可自定义的主题（内置 + 自定义 ZIP 主题包）。
 
@@ -306,6 +306,7 @@ E:\environment\python\python313\python.exe run.py
 - **站点地址解析优先级**：后台配置值 → `PUBLIC_HOST` 环境变量 → 访问者使用的主机名 → 配置文件默认值（`API_BASE_URL` / `FRONTEND_BASE_URL`）。
   因此以服务器 IP 或域名直连时通常**无需任何配置**；如需固定为特定域名（例如经反向代理后），在后台填写即可。修改后请刷新页面。
 - **后台专属 API 地址**优先于上述规则，且只影响后台管理端（前台不受影响）。注意浏览器要求协议一致：HTTPS 下的后台页面无法请求 `http://` 接口。
+- **站点地址专用设置流程**：上述三项地址在后台为**只读**，统一通过「设置站点地址」按钮弹窗修改——弹窗内可选择设置目标（API / 后台专属 / 前台，可多选），需输入管理员账户与密码（后端二次校验），并会**先用当前浏览器探测新地址**（API 类地址请求 `/api/health`，前台地址探测可达性）；探测失败即取消保存、不改动原配置。旁边另有「清除站点地址」按钮可一键恢复自动推断。
 - favicon 上传限制：单文件 ≤ 2 MB，且必须是可识别的图片（`.ico/.png/.jpg/.jpeg/.gif/.webp/.bmp`，其它扩展名统一按 `.png` 保存），文件写入 `data/favicon.*`。
 
 ---
@@ -582,6 +583,18 @@ CORS 默认**放行任意 http/https 来源**（含不带端口的标准 80/443 
 
 **Q11：上传/更换 favicon 后浏览器仍显示旧图标？**
 favicon 会被浏览器强缓存，请**强制刷新**（Ctrl+F5）或清除缓存后再查看。图标文件写入 `data/favicon.*`，可通过 `GET /api/favicon` 验证是否已生效。
+
+**Q12：站点地址填错，进不去后台了怎么办？**
+后台「站点地址」只能通过「设置站点地址」按钮修改，且保存前会用浏览器探测新地址，正常情况下不会填错。若确实无法进入后台，任选其一恢复：
+
+1. **环境变量方式**：设置 `PUBLIC_HOST=你的域名或IP` 后重启容器，此时把站点地址留空即按它自动推断；
+2. **直接清空数据库中的站点地址**（Docker 部署）：
+
+```bash
+docker compose -f docker-compose.deploy.yml exec imagelibrary python -c "import sqlite3;c=sqlite3.connect('/app/data/app.db');c.execute(\"DELETE FROM settings WHERE key IN ('api_base_url','admin_api_base_url','frontend_base_url')\");c.commit()"
+```
+
+随后刷新后台页面即可（地址将按访问主机自动推断）。
 
 ---
 

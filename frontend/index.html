@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页 - 图片库</title>
+  <!-- 提前应用本地记忆的主题，避免闪烁 -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('il_theme');
+        if (t) { document.documentElement.setAttribute('data-theme', t); }
+      } catch (e) { /* 忽略 */ }
+    })();
+  </script>
+  <!-- 全部主题（通过 html data-theme 切换即时生效） -->
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <!-- 基础样式 -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container">
+    <section class="page-head">
+      <div>
+        <h1 class="page-title">图库</h1>
+        <p class="page-subtitle">浏览全部公开图片</p>
+      </div>
+      <div class="toolbar">
+        <label class="field-inline">
+          <span>排序</span>
+          <select id="sort" class="select select--sm">
+            <option value="latest">最新</option>
+            <option value="popular">最热</option>
+            <option value="name">名称</option>
+          </select>
+        </label>
+        <button id="export-btn" class="btn btn--primary" type="button" hidden>批量导出（0）</button>
+      </div>
+    </section>
+
+    <div id="result-count" class="result-count"></div>
+    <div id="grid" class="image-grid"></div>
+    <div id="pagination" class="pagination"></div>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/user.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/index.js"></script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户管理</title>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("il_admin_theme");
+        document.documentElement.setAttribute("data-theme", t || "light");
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app-layout">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="container">
+        <div class="page-head">
+          <div>
+            <h2>用户管理</h2>
+            <div class="subtitle" id="users-summary">管理注册用户、启用状态与密码</div>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" id="refresh-btn">刷新</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="filter-bar">
+            <div class="form-field grow">
+              <label for="q-input">关键词</label>
+              <input class="input" id="q-input" type="text" placeholder="用户名 / 邮箱 / 昵称">
+            </div>
+            <div class="form-field">
+              <label for="provider-select">来源</label>
+              <select class="select" id="provider-select">
+                <option value="">全部来源</option>
+                <option value="local">本地</option>
+                <option value="github">GitHub</option>
+                <option value="oauth2">OAuth2</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="enabled-select">状态</label>
+              <select class="select" id="enabled-select">
+                <option value="">全部状态</option>
+                <option value="true">已启用</option>
+                <option value="false">已禁用</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <button type="button" class="btn btn-primary" id="filter-btn">筛选</button>
+            </div>
+            <div class="form-field">
+              <button type="button" class="btn btn-ghost" id="reset-btn">重置</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>用户名</th>
+                <th>邮箱</th>
+                <th>昵称</th>
+                <th>来源</th>
+                <th>状态</th>
+                <th>注册时间</th>
+                <th>最近登录</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+        <div id="pagination"></div>
+      </main>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/users.js"></script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>站点设置</title>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("il_admin_theme");
+        document.documentElement.setAttribute("data-theme", t || "light");
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app-layout">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="container">
+        <div class="page-head">
+          <div>
+            <h2>站点设置</h2>
+            <div class="subtitle">站点信息、SEO、功能开关与站点图标</div>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" id="refresh-btn">刷新</button>
+        </div>
+
+        <form id="site-form">
+          <div class="card">
+            <div class="card-header"><span>站点信息</span></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label for="site-name">站点名称</label>
+                <input class="input" id="site-name" type="text" placeholder="我的图库">
+              </div>
+              <div class="form-field">
+                <label for="site-title">页面标题 / SEO 标题</label>
+                <input class="input" id="site-title" type="text" placeholder="留空则使用站点名称">
+              </div>
+              <div class="form-field">
+                <label for="site-description">站点描述</label>
+                <textarea class="textarea" id="site-description" placeholder="用于搜索引擎与分享预览的描述"></textarea>
+              </div>
+              <div class="form-field">
+                <label for="site-keywords">站点关键词</label>
+                <input class="input" id="site-keywords" type="text" placeholder="多个关键词以英文逗号分隔">
+              </div>
+              <div class="form-field">
+                <label for="footer-text">页脚文案</label>
+                <input class="input" id="footer-text" type="text" placeholder="显示在前台页脚的文字">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span>SEO 与功能开关</span></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label>搜索引擎索引</label>
+                <label class="switch">
+                  <input type="checkbox" id="allow-index">
+                  <span class="slider"></span>
+                </label>
+                <div class="form-hint">关闭后将在 robots.txt 中禁止搜索引擎抓取</div>
+              </div>
+              <div class="form-field">
+                <label for="robots-extra">附加 robots 规则</label>
+                <textarea class="textarea" id="robots-extra" placeholder="追加到 robots.txt 的自定义规则，如 Disallow: /private/"></textarea>
+              </div>
+              <div class="form-field">
+                <label>生成 sitemap.xml</label>
+                <label class="switch">
+                  <input type="checkbox" id="sitemap-enabled">
+                  <span class="slider"></span>
+                </label>
+                <div class="form-hint">开启后前台可访问 /sitemap.xml</div>
+              </div>
+              <div class="form-field">
+                <label>开启评论</label>
+                <label class="switch">
+                  <input type="checkbox" id="comments-enabled">
+                  <span class="slider"></span>
+                </label>
+                <div class="form-hint">关闭后前台将无法发表评论</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-md">
+            <button type="submit" class="btn btn-primary" id="site-save">保存设置</button>
+          </div>
+        </form>
+
+        <div class="card mt-lg">
+          <div class="card-header"><span>站点图标（favicon）</span></div>
+          <div class="card-body">
+            <div class="flex items-center gap-md flex-wrap mb-md">
+              <img id="favicon-preview" src="" alt="站点图标预览" width="48" height="48"
+                   style="width:48px;height:48px;object-fit:contain;border:1px solid var(--color-border);border-radius:var(--radius-sm);background-color:var(--color-surface-2);">
+              <div class="form-hint" id="favicon-hint">未设置站点图标</div>
+            </div>
+            <div class="flex items-center gap-md flex-wrap">
+              <input type="file" id="favicon-file" accept=".ico,.png,.jpg,.jpeg,.gif,.webp,.bmp,image/*">
+              <button type="button" class="btn btn-outline btn-sm" id="favicon-upload">上传图标</button>
+              <button type="button" class="btn btn-ghost btn-sm text-danger" id="favicon-clear">清除图标</button>
+            </div>
+            <div class="form-hint mt-sm">支持 ico / png / jpg / gif / webp / bmp，大小不超过 2MB</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span>便捷链接</span></div>
+          <div class="card-body">
+            <div class="form-field">
+              <label>robots.txt</label>
+              <div class="flex items-center gap-sm">
+                <input class="input" id="robots-url" type="text" readonly value="http://127.0.0.1:8000/robots.txt">
+                <a class="btn btn-outline btn-sm" href="http://127.0.0.1:8000/robots.txt" target="_blank" rel="noopener">打开</a>
+              </div>
+            </div>
+            <div class="form-field">
+              <label>sitemap.xml</label>
+              <div class="flex items-center gap-sm">
+                <input class="input" id="sitemap-url" type="text" readonly value="http://127.0.0.1:8000/sitemap.xml">
+                <a class="btn btn-outline btn-sm" href="http://127.0.0.1:8000/sitemap.xml" target="_blank" rel="noopener">打开</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/site-settings.js"></script>
+</body>
+</html>

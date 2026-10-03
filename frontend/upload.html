@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上传图片 - 图片库</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('il_theme');
+        if (t) { document.documentElement.setAttribute('data-theme', t); }
+      } catch (e) { /* 忽略 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container container--narrow">
+    <section class="page-head">
+      <div>
+        <h1 class="page-title">上传图片</h1>
+        <p class="page-subtitle">凭上传 Token 提交图片，管理员审核后公开</p>
+      </div>
+    </section>
+
+    <div class="card panel">
+      <label class="field" for="token">
+        <span class="field__label">上传 Token</span>
+      </label>
+      <div class="field__row">
+        <input id="token" class="input" type="text" placeholder="请输入管理员提供给你的上传 Token" autocomplete="off">
+        <button id="validate-btn" class="btn btn--primary" type="button">校验</button>
+      </div>
+      <div id="token-result" class="token-result"></div>
+    </div>
+
+    <div class="card panel">
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或拖拽图片">
+        <input id="file-input" type="file" accept="image/*" multiple hidden>
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <p class="dropzone__title">点击选择或拖拽图片到这里</p>
+        <p class="muted">支持 jpg / png / gif / webp / bmp，可多选</p>
+      </div>
+      <ul id="file-list" class="file-list"></ul>
+      <div class="panel__actions">
+        <button id="upload-btn" class="btn btn--primary" type="button" disabled>开始上传</button>
+        <button id="clear-btn" class="btn btn--ghost" type="button">清空</button>
+      </div>
+    </div>
+
+    <div id="upload-result" class="upload-result"></div>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/user.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/upload.js"></script>
+</body>
+</html>

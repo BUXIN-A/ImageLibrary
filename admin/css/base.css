@@ -1,0 +1,195 @@
+/* ==========================================================================
+   base.css —— 基础层：现代重置、排版、通用元素与非主题变量
+   说明：主题相关颜色/阴影/圆角/字体由 themes/*.css 通过 CSS 变量提供；
+   此处 :root 仅作为兜底默认值（等同 light）。非主题变量（间距/字号/过渡）
+   统一放在本文件，避免污染主题文件的变量键集合。
+   后台整体信息密度略高于前台（正文 14px）。
+   ========================================================================== */
+
+:root {
+  /* ---- 兜底主题（等同 light） ---- */
+  --color-bg: #fbfbfa;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f1ef;
+  --color-text: #37352f;
+  --color-text-muted: #787774;
+  --color-primary: #2383e2;
+  --color-primary-contrast: #ffffff;
+  --color-border: rgba(55, 53, 47, 0.09);
+  --color-danger: #eb5757;
+  --color-success: #0f7b6c;
+  --color-warning: #cb912f;
+  --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-md: 0 4px 14px rgba(15, 15, 15, 0.1);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+
+  /* ---- 非主题变量：间距 ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ---- 非主题变量：字号 ---- */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 17px;
+  --text-xl: 21px;
+  --text-2xl: 26px;
+
+  /* ---- 非主题变量：过渡 ---- */
+  --transition-fast: 120ms ease;
+  --transition: 180ms ease;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+/* ---------- 排版 ---------- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0 0 0.5em;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
+h4 { font-size: var(--text-base); }
+
+p {
+  margin: 0 0 0.8em;
+}
+
+small {
+  font-size: var(--text-sm);
+}
+
+strong { font-weight: 600; }
+
+code, pre, kbd, .mono {
+  font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+code, kbd {
+  font-size: 0.9em;
+}
+
+pre {
+  padding: var(--space-3) var(--space-4);
+  overflow: auto;
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+/* ---------- 滚动条 ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text-muted) 32%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+  background-clip: padding-box;
+}
+
+/* ---------- 工具类 ---------- */
+.hidden { display: none !important; }
+.muted { color: var(--color-text-muted); }
+.text-danger { color: var(--color-danger); }
+.text-success { color: var(--color-success); }
+.text-center { text-align: center; }
+.nowrap { white-space: nowrap; }
+
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-sm { gap: var(--space-2); }
+.gap-md { gap: var(--space-4); }
+.mt-sm { margin-top: var(--space-2); }
+.mt-md { margin-top: var(--space-4); }
+.mt-lg { margin-top: var(--space-6); }
+.mb-sm { margin-bottom: var(--space-2); }
+.mb-md { margin-bottom: var(--space-4); }
+.ml-auto { margin-left: auto; }
+
+/* 响应式显示 */
+.only-mobile { display: none !important; }
+@media (max-width: 860px) {
+  .only-mobile { display: inline-flex !important; }
+  .only-desktop { display: none !important; }
+}

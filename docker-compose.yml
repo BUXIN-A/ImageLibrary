@@ -1,0 +1,43 @@
+services:
+  imagelibrary:
+    build: .
+    image: imagelibrary:latest
+    container_name: imagelibrary
+    restart: unless-stopped
+    ports:
+      # 端口映射与容器内监听端口保持一致（均由环境变量控制）
+      - "${API_PORT:-8080}:${API_PORT:-8080}"
+      - "${FRONTEND_PORT:-8000}:${FRONTEND_PORT:-8000}"
+      - "${ADMIN_PORT:-8001}:${ADMIN_PORT:-8001}"
+    environment:
+      # 容器内必须监听所有网卡
+      HOST: "0.0.0.0"
+      # 三个服务端口
+      API_PORT: "${API_PORT:-8080}"
+      FRONTEND_PORT: "${FRONTEND_PORT:-8000}"
+      ADMIN_PORT: "${ADMIN_PORT:-8001}"
+      # 管理员账号（默认仅首次初始化数据库时写入）
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
+      # 设为 true 时，每次启动都用上面的账号密码覆盖已有管理员（便于用环境变量统一管理）
+      ADMIN_FORCE_SYNC: "${ADMIN_FORCE_SYNC:-false}"
+      # JWT 签名密钥（生产环境务必修改）
+      SECRET_KEY: "${SECRET_KEY:-change-me-please-in-production}"
+      # 对外访问主机：填服务器 IP 或域名后，分享链接/OAuth 回调/CORS 才会正确
+      PUBLIC_HOST: "${PUBLIC_HOST:-}"
+      PUBLIC_SCHEME: "${PUBLIC_SCHEME:-http}"
+      # 额外允许的跨域来源（逗号分隔），一般无需设置
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
+      # 上传与限流
+      MAX_UPLOAD_SIZE: "${MAX_UPLOAD_SIZE:-20971520}"
+      RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS:-20}"
+      RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "/app/docker/healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

@@ -1,0 +1,22 @@
+# 运行期数据（数据库/图片/主题），不要打进镜像
+data/
+
+# Python 缓存与虚拟环境
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 版本控制与 IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# 规格文档与说明（镜像内不需要）
+.trae/
+*.md
+
+# 本地环境文件（可能含密钥，切勿打进镜像）
+.env

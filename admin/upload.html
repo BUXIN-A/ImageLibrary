@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上传图片</title>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("il_admin_theme");
+        document.documentElement.setAttribute("data-theme", t || "light");
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app-layout">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="container">
+        <div class="page-head">
+          <div>
+            <h2>上传图片</h2>
+            <div class="subtitle">支持拖拽或点击选择多张图片，上传后状态为「已通过」</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <form id="upload-form">
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="up-title">标题（可选）</label>
+                  <input class="input" id="up-title" type="text" placeholder="留空则使用原文件名">
+                </div>
+                <div class="form-field">
+                  <label for="up-folder">所属文件夹</label>
+                  <select class="select" id="up-folder"></select>
+                </div>
+                <div class="form-field full">
+                  <label for="up-tags">标签（英文逗号分隔，可选）</label>
+                  <input class="input" id="up-tags" type="text" placeholder="如：风景,旅行">
+                </div>
+                <div class="form-field full">
+                  <label for="up-desc">描述（可选）</label>
+                  <textarea class="textarea" id="up-desc" placeholder="图片描述"></textarea>
+                </div>
+              </div>
+
+              <div class="dropzone" id="dropzone">
+                <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M12 16V4m0 0L8 8m4-4l4 4"/>
+                  <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+                </svg>
+                <div class="drop-title">拖拽图片到此处，或点击选择文件</div>
+                <div>支持 JPG / PNG / GIF / WEBP / BMP，可多选</div>
+                <input type="file" id="file-input" accept="image/*" multiple hidden>
+              </div>
+
+              <div class="file-list" id="file-list"></div>
+
+              <div class="flex items-center justify-between mt-md">
+                <span class="muted" id="selected-info">未选择文件</span>
+                <button type="submit" class="btn btn-primary" id="upload-btn" disabled>开始上传</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card hidden" id="result-card">
+          <div class="card-header">
+            <span>上传结果</span>
+            <span class="muted" id="result-summary"></span>
+          </div>
+          <div class="card-body">
+            <div class="result-list" id="result-list"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/upload.js"></script>
+</body>
+</html>

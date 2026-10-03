@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图库管理</title>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("il_admin_theme");
+        document.documentElement.setAttribute("data-theme", t || "light");
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app-layout">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="container">
+        <div class="page-head">
+          <div>
+            <h2>图库管理</h2>
+            <div class="subtitle">筛选、编辑、批量处理与导出图片</div>
+          </div>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="toolbar">
+          <div class="filter-bar">
+            <div class="form-field grow">
+              <label for="q-input">关键词</label>
+              <input class="input" id="q-input" type="text" placeholder="标题 / 描述 / 文件名">
+            </div>
+            <div class="form-field">
+              <label for="folder-select">文件夹</label>
+              <select class="select" id="folder-select"></select>
+            </div>
+            <div class="form-field">
+              <label for="tag-select">标签</label>
+              <select class="select" id="tag-select"></select>
+            </div>
+            <div class="form-field">
+              <label for="status-select">状态</label>
+              <select class="select" id="status-select">
+                <option value="">全部状态</option>
+                <option value="approved">已通过</option>
+                <option value="pending">待审核</option>
+                <option value="rejected">已拒绝</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="sort-select">排序</label>
+              <select class="select" id="sort-select">
+                <option value="latest">最新上传</option>
+                <option value="popular">最多浏览</option>
+                <option value="name">按标题</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary" id="filter-btn">查询</button>
+            <button type="button" class="btn btn-ghost" id="reset-btn">重置</button>
+          </div>
+        </div>
+
+        <!-- 批量操作 -->
+        <div class="toolbar">
+          <label class="checkbox">
+            <input type="checkbox" id="select-all">
+            <span>全选本页</span>
+          </label>
+          <span class="selected-count" id="selected-count">已选 0 张</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-outline btn-sm" id="batch-approve">通过</button>
+          <button type="button" class="btn btn-outline btn-sm" id="batch-reject">拒绝</button>
+          <button type="button" class="btn btn-outline btn-sm" id="batch-move">移动到文件夹</button>
+          <button type="button" class="btn btn-outline btn-sm" id="batch-tag">添加标签</button>
+          <button type="button" class="btn btn-outline btn-sm" id="batch-export">导出 ZIP</button>
+          <button type="button" class="btn btn-danger btn-sm" id="batch-delete">删除</button>
+        </div>
+
+        <div id="grid"></div>
+        <div id="pagination"></div>
+      </main>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/images.js"></script>
+</body>
+</html>

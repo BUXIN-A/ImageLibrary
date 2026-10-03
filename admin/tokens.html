@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上传 Token 管理</title>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("il_admin_theme");
+        document.documentElement.setAttribute("data-theme", t || "light");
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app-layout">
+    <aside id="app-sidebar"></aside>
+    <div class="app-main">
+      <header id="app-topbar"></header>
+      <main class="container">
+        <div class="page-head">
+          <div>
+            <h2>上传 Token</h2>
+            <div class="subtitle">发放给其他用户用于前台凭证上传，上传内容需审核</div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="new-token-btn">新建 Token</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>备注</th>
+                <th>Token</th>
+                <th>状态</th>
+                <th>有效期</th>
+                <th>已用 / 上限</th>
+                <th>剩余</th>
+                <th>单文件上限</th>
+                <th>最近使用</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="token-tbody">
+              <tr><td colspan="9"><div class="loading"><span class="spinner"></span>加载中…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/tokens.js"></script>
+</body>
+</html>

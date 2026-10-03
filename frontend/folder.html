@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件夹 - 图片库</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('il_theme');
+        if (t) { document.documentElement.setAttribute('data-theme', t); }
+      } catch (e) { /* 忽略 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="themes/light.css">
+  <link rel="stylesheet" href="themes/dark.css">
+  <link rel="stylesheet" href="themes/ocean.css">
+  <link rel="stylesheet" href="themes/forest.css">
+  <link rel="stylesheet" href="themes/sunset.css">
+  <link rel="stylesheet" href="themes/sakura.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container">
+    <section class="page-head">
+      <div>
+        <h1 class="page-title">文件夹</h1>
+        <p class="page-subtitle">按分类浏览图片</p>
+      </div>
+      <label class="switch">
+        <input id="include-sub" type="checkbox">
+        <span>包含子文件夹</span>
+      </label>
+    </section>
+
+    <div class="folder-layout">
+      <aside class="folder-sidebar">
+        <div id="folder-tree" class="tree"></div>
+      </aside>
+      <section class="folder-content">
+        <div id="folder-title" class="folder-title">全部图片</div>
+        <div id="subfolders" class="subfolder-list"></div>
+        <div id="grid" class="image-grid"></div>
+        <div id="pagination" class="pagination"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/user.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/pages/folder.js"></script>
+</body>
+</html>

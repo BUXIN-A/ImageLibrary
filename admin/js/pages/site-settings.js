@@ -14,6 +14,14 @@
     els.siteDescription = document.getElementById("site-description");
     els.siteKeywords = document.getElementById("site-keywords");
     els.footerText = document.getElementById("footer-text");
+    els.apiBaseUrl = document.getElementById("api-base-url");
+    els.frontendBaseUrl = document.getElementById("frontend-base-url");
+    els.apiBaseResolved = document.getElementById("api-base-resolved");
+    els.frontendBaseResolved = document.getElementById("frontend-base-resolved");
+    els.robotsUrl = document.getElementById("robots-url");
+    els.sitemapUrl = document.getElementById("sitemap-url");
+    els.robotsLink = document.getElementById("robots-link");
+    els.sitemapLink = document.getElementById("sitemap-link");
     els.allowIndex = document.getElementById("allow-index");
     els.robotsExtra = document.getElementById("robots-extra");
     els.sitemapEnabled = document.getElementById("sitemap-enabled");
@@ -39,6 +47,23 @@
     }
   }
 
+  /** 展示实际生效的站点地址，并同步 robots/sitemap 便捷链接。 */
+  function setResolved(data) {
+    data = data || {};
+    var apiBase = data.resolved_api_base_url || data.api_base_url || "";
+    var frontendBase = (data.resolved_frontend_base_url || data.frontend_base_url || "").replace(/\/$/, "");
+    els.apiBaseResolved.textContent = apiBase || "-";
+    els.frontendBaseResolved.textContent = frontendBase || "-";
+    if (frontendBase) {
+      var robotsUrl = frontendBase + "/robots.txt";
+      var sitemapUrl = frontendBase + "/sitemap.xml";
+      els.robotsUrl.value = robotsUrl;
+      els.sitemapUrl.value = sitemapUrl;
+      els.robotsLink.href = robotsUrl;
+      els.sitemapLink.href = sitemapUrl;
+    }
+  }
+
   function fill(data) {
     data = data || {};
     els.siteName.value = data.site_name || "";
@@ -46,10 +71,13 @@
     els.siteDescription.value = data.site_description || "";
     els.siteKeywords.value = data.site_keywords || "";
     els.footerText.value = data.footer_text || "";
+    els.apiBaseUrl.value = data.api_base_url || "";
+    els.frontendBaseUrl.value = data.frontend_base_url || "";
     els.allowIndex.checked = data.allow_index !== false;
     els.robotsExtra.value = data.robots_extra || "";
     els.sitemapEnabled.checked = data.sitemap_enabled !== false;
     els.commentsEnabled.checked = data.comments_enabled !== false;
+    setResolved(data);
     setFaviconPreview(data.favicon || "");
   }
 
@@ -75,12 +103,15 @@
           site_description: els.siteDescription.value.trim(),
           site_keywords: els.siteKeywords.value.trim(),
           footer_text: els.footerText.value.trim(),
+          api_base_url: els.apiBaseUrl.value.trim(),
+          frontend_base_url: els.frontendBaseUrl.value.trim(),
           allow_index: els.allowIndex.checked,
           robots_extra: els.robotsExtra.value,
           sitemap_enabled: els.sitemapEnabled.checked,
           comments_enabled: els.commentsEnabled.checked
         });
         UI.toast("站点设置已保存", "success");
+        load();
       } catch (err) {
         UI.toast(err.message || "保存失败", "error");
       } finally {

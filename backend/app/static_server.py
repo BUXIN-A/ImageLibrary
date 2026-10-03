@@ -10,11 +10,11 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.models import Folder, Image
 from backend.app.routers.site import favicon_file_path
 from backend.app.seed import get_bool_setting, get_setting
+from backend.app.site_config import effective_api_base, effective_frontend_base
 
 
 def _robots_text(db: Session) -> str:
@@ -30,7 +30,7 @@ def _robots_text(db: Session) -> str:
 
 def _sitemap_xml(db: Session) -> str:
     """生成 sitemap.xml 内容（首页 + 文件夹 + 已公开未删除图片）。"""
-    base = settings.frontend_base_url().rstrip("/")
+    base = effective_frontend_base(db).rstrip("/")
     entries: list[str] = [f"  <url><loc>{escape(f'{base}/index.html')}</loc></url>"]
 
     for folder in db.query(Folder).all():
@@ -101,9 +101,9 @@ def _register_config_route(app: FastAPI) -> None:
     """
 
     @app.get("/js/config.js")
-    def config_js(request: Request) -> Response:
+    def config_js(request: Request, db: Session = Depends(get_db)) -> Response:
         """返回前端运行时配置（API 基地址）。"""
-        base = settings.resolve_api_base(request)
+        base = effective_api_base(db, request)
         body = (
             "/* 由后端动态生成：自动适配访问主机与 API 端口 */\n"
             "(function () {\n"

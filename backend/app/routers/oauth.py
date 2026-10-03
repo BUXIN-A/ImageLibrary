@@ -8,11 +8,11 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from backend.app import oauth_service
-from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.models import User, now
 from backend.app.seed import get_bool_setting, get_setting
 from backend.app.security import create_access_token
+from backend.app.site_config import effective_frontend_base
 
 router = APIRouter(prefix="/api/auth", tags=["oauth"])
 
@@ -20,14 +20,14 @@ router = APIRouter(prefix="/api/auth", tags=["oauth"])
 _USERNAME_SUFFIX = {"github": "_gh", "oauth2": "_oa"}
 
 
-def _login_url(query: str) -> str:
-    """构造前台登录页跳转地址。"""
-    return f"{settings.frontend_base_url()}/login.html?{query}"
+def _login_url(query: str, db: Session) -> str:
+    """构造前台登录页跳转地址（优先使用后台配置的前台站点地址）。"""
+    return f"{effective_frontend_base(db)}/login.html?{query}"
 
 
-def _error_redirect(message: str) -> RedirectResponse:
+def _error_redirect(message: str, db: Session) -> RedirectResponse:
     """跳转到登录页并携带 URL 编码的中文错误信息。"""
-    return RedirectResponse(_login_url(f"error={quote(message)}"), status_code=302)
+    return RedirectResponse(_login_url(f"error={quote(message)}", db), status_code=302)
 
 
 def _create_user_from_profile(db: Session, provider: str, mapped: dict) -> User:
@@ -66,7 +66,7 @@ def _create_user_from_profile(db: Session, provider: str, mapped: dict) -> User:
 def _handle_callback(provider: str, code: str, state: str, db: Session) -> RedirectResponse:
     """通用回调处理：校验 state、换令牌、取资料、查/建用户并签发用户令牌。"""
     if not oauth_service.verify_state(state):
-        return _error_redirect("state 校验失败，请重试")
+        return _error_redirect("state 校验失败，请重试", db)
 
     try:
         token_data = oauth_service.exchange_code(provider, code)
@@ -76,11 +76,11 @@ def _handle_callback(provider: str, code: str, state: str, db: Session) -> Redir
         raw_profile = oauth_service.fetch_profile(provider, access_token)
         mapped = oauth_service.map_profile(provider, raw_profile)
     except ValueError as exc:
-        return _error_redirect(str(exc))
+        return _error_redirect(str(exc), db)
 
     uid = str(mapped.get("provider_uid") or "").strip()
     if not uid:
-        return _error_redirect("无法获取第三方用户唯一标识")
+        return _error_redirect("无法获取第三方用户唯一标识", db)
 
     user = (
         db.query(User)
@@ -91,17 +91,17 @@ def _handle_callback(provider: str, code: str, state: str, db: Session) -> Redir
         try:
             user = _create_user_from_profile(db, provider, mapped)
         except ValueError as exc:
-            return _error_redirect(str(exc))
+            return _error_redirect(str(exc), db)
 
     if not user.enabled:
-        return RedirectResponse(_login_url("error=account_disabled"), status_code=302)
+        return RedirectResponse(_login_url("error=account_disabled", db), status_code=302)
 
     user.last_login_at = now()
     db.commit()
 
     jwt_token = create_access_token(user.username, role="user")
     return RedirectResponse(
-        _login_url(f"token={jwt_token}&provider={provider}"), status_code=302
+        _login_url(f"token={jwt_token}&provider={provider}", db), status_code=302
     )
 
 
@@ -133,7 +133,7 @@ def github_authorize(db: Session = Depends(get_db)) -> RedirectResponse:
         and get_setting(db, "github_client_id", "")
     ):
         raise HTTPException(status_code=400, detail="GitHub 登录未启用")
-    url = oauth_service.build_authorize_url("github", oauth_service.generate_state())
+    url = oauth_service.build_authorize_url("github", oauth_service.generate_state(), db)
     return RedirectResponse(url, status_code=302)
 
 
@@ -154,7 +154,7 @@ def oauth2_authorize(db: Session = Depends(get_db)) -> RedirectResponse:
     ):
         raise HTTPException(status_code=400, detail="OAuth2 登录未启用")
     try:
-        url = oauth_service.build_authorize_url("oauth2", oauth_service.generate_state())
+        url = oauth_service.build_authorize_url("oauth2", oauth_service.generate_state(), db)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return RedirectResponse(url, status_code=302)

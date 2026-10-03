@@ -47,6 +47,9 @@
   }, []);
 
   var API_BASE = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+  // 站点版本号与当前高亮导航（供异步获取版本后重渲染侧边栏）
+  var siteVersion = "";
+  var currentActive = "";
 
   function iconSvg(path) {
     return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" ' +
@@ -56,6 +59,7 @@
   function renderSidebar(active) {
     var aside = document.getElementById("app-sidebar");
     if (!aside) return;
+    currentActive = active || "";
     var brand = Theme.getState().siteName || "图库后台";
     var html =
       '<div class="sidebar-brand">' +
@@ -78,27 +82,36 @@
       html += "</div>";
     });
     html += "</nav>";
+    if (siteVersion) {
+      html += '<div class="sidebar-footer">ImageLibrary v' + UI.escapeHtml(siteVersion) + "</div>";
+    }
     aside.innerHTML = html;
   }
 
   /**
-   * 注入站点 favicon：请求 /api/settings 取 favicon，失败静默；
-   * favicon 为空时不注入任何 link。
+   * 注入站点 favicon 与版本号：请求 /api/settings，失败静默；
+   * favicon 为空时不注入 link，版本号获取成功后重渲染侧边栏底部。
    */
-  async function loadFavicon() {
+  async function loadSiteMeta() {
     try {
       var data = await API.get("/api/settings");
       var favicon = data && data.favicon;
-      if (!favicon) return;
-      var href = /^https?:\/\//i.test(favicon) ? favicon : API_BASE + favicon;
-      var link = document.head && document.head.querySelector('link[rel="icon"]');
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        if (document.head) document.head.appendChild(link);
+      if (favicon) {
+        var href = /^https?:\/\//i.test(favicon) ? favicon : API_BASE + favicon;
+        var link = document.head && document.head.querySelector('link[rel="icon"]');
+        if (!link) {
+          link = document.createElement("link");
+          link.rel = "icon";
+          if (document.head) document.head.appendChild(link);
+        }
+        link.href = href;
       }
-      link.href = href;
-    } catch (err) { /* 静默：图标获取失败不影响布局 */ }
+      var version = data && data.version;
+      if (version && version !== siteVersion) {
+        siteVersion = version;
+        safeSidebar(currentActive);
+      }
+    } catch (err) { /* 静默：站点元信息获取失败不影响布局 */ }
   }
 
   function renderTopbar(admin) {
@@ -173,8 +186,8 @@
     // 1) 同步渲染骨架，保证侧边栏/顶栏始终可见
     safeSidebar(options.active);
     safeTopbar(null);
-    // 异步注入 favicon（失败静默，不阻塞布局）
-    loadFavicon();
+    // 异步注入 favicon 与版本号（失败静默，不阻塞布局）
+    loadSiteMeta();
 
     // 2) 异步鉴权（可能触发跳转登录页），异常时返回 null
     var admin = null;
@@ -216,8 +229,8 @@
     // 主题就绪后再渲染一次（站点名、主题选项可能已更新）
     safeSidebar(options.active);
     safeTopbar(null);
-    // 异步注入 favicon（失败静默，不阻塞布局）
-    loadFavicon();
+    // 异步注入 favicon 与版本号（失败静默，不阻塞布局）
+    loadSiteMeta();
 
     var admin = null;
     try {

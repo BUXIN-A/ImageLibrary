@@ -9,7 +9,6 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
-from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
 from backend.app.export_service import build_zip_file, cleanup_file
@@ -23,6 +22,7 @@ from backend.app.schemas import (
     PageResponse,
 )
 from backend.app.security import generate_token
+from backend.app.site_config import effective_frontend_base
 
 router = APIRouter(
     prefix="/api/admin/images",
@@ -330,6 +330,6 @@ def share_image(image_id: int, db: Session = Depends(get_db)) -> dict:
         db.commit()
         db.refresh(image)
     share_url = (
-        f"{settings.frontend_base_url()}/share.html?token={image.share_token}"
+        f"{effective_frontend_base(db)}/share.html?token={image.share_token}"
     )
     return {"share_token": image.share_token, "share_url": share_url}

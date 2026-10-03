@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 from backend.app.config import settings
 from backend.app.database import SessionLocal
 from backend.app.seed import get_setting
+from backend.app.site_config import effective_api_base
 
 # GitHub 固定端点
 _GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
@@ -38,9 +39,17 @@ def _cfg(key: str, default: str = "") -> str:
     return default if value is None else value
 
 
-def callback_url(provider: str) -> str:
-    """返回指定 provider 的回调地址。"""
-    return f"{settings.api_base_url()}/api/auth/{provider}/callback"
+def callback_url(provider: str, db=None) -> str:
+    """返回指定 provider 的回调地址（优先使用后台配置的 API 站点地址）。"""
+    if db is None:
+        session = SessionLocal()
+        try:
+            base = effective_api_base(session)
+        finally:
+            session.close()
+    else:
+        base = effective_api_base(db)
+    return f"{base}/api/auth/{provider}/callback"
 
 
 # ---------------- state 管理 ----------------
@@ -111,9 +120,9 @@ def _http_get_json(url: str, headers: dict) -> object:
 
 
 # ---------------- 对外能力 ----------------
-def build_authorize_url(provider: str, state: str) -> str:
+def build_authorize_url(provider: str, state: str, db=None) -> str:
     """构建第三方授权跳转 URL。"""
-    redirect_uri = callback_url(provider)
+    redirect_uri = callback_url(provider, db)
     if provider == "github":
         client_id = _cfg("github_client_id")
         params = {

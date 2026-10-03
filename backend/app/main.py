@@ -26,11 +26,12 @@ from backend.app.routers import (
     user,
 )
 from backend.app.seed import init_seed
+from backend.app.version import __version__
 
 # 确保数据目录存在（StaticFiles 挂载时目录必须存在）
 settings.ensure_dirs()
 
-app = FastAPI(title="ImageLibrary API", version="1.0.0")
+app = FastAPI(title="ImageLibrary API", version=__version__)
 
 # 允许前台(8000)与后台(8001)跨域访问
 app.add_middleware(
@@ -94,4 +95,4 @@ app.include_router(admin_images.router)
 @app.get("/api/health")
 def health() -> dict:
     """健康检查。"""
-    return {"status": "ok"}
+    return {"status": "ok", "version": __version__}

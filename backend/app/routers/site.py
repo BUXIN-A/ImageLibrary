@@ -14,6 +14,13 @@ from backend.app.database import get_db
 from backend.app.deps import get_current_admin
 from backend.app.schemas import SiteUpdate
 from backend.app.seed import get_bool_setting, get_setting, set_setting
+from backend.app.site_config import (
+    configured_api_base,
+    configured_frontend_base,
+    effective_api_base,
+    effective_frontend_base,
+)
+from backend.app.version import __version__
 
 router = APIRouter(prefix="/api", tags=["site"])
 admin_router = APIRouter(
@@ -48,13 +55,21 @@ def _site_public(db: Session) -> dict:
         "sitemap_enabled": get_bool_setting(db, "sitemap_enabled", True),
         "comments_enabled": get_bool_setting(db, "comments_enabled", True),
         "footer_text": get_setting(db, "footer_text", ""),
-        "frontend_base_url": settings.frontend_base_url(),
+        "frontend_base_url": effective_frontend_base(db),
+        "api_base_url": effective_api_base(db),
+        "version": __version__,
     }
 
 
 def _site_admin(db: Session) -> dict:
-    """管理端站点设置（在公开字段基础上追加 robots_extra）。"""
+    """管理端站点设置（在公开字段基础上追加原始配置值与 robots_extra）。"""
     data = _site_public(db)
+    # 实际生效值（只读展示）
+    data["resolved_api_base_url"] = data["api_base_url"]
+    data["resolved_frontend_base_url"] = data["frontend_base_url"]
+    # 后台配置值（可编辑，留空表示自动）
+    data["api_base_url"] = configured_api_base(db)
+    data["frontend_base_url"] = configured_frontend_base(db)
     data["robots_extra"] = get_setting(db, "robots_extra", "")
     return data
 

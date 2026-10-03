@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from backend.app import oauth_service
-from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
 from backend.app.schemas import LoginSettingsUpdate
 from backend.app.seed import get_bool_setting, get_setting, set_setting
+from backend.app.site_config import effective_api_base
 
 router = APIRouter(
     prefix="/api/admin/login-settings",
@@ -56,9 +56,9 @@ def _build(db: Session) -> dict:
         "oauth2_nickname_field": get_setting(db, "oauth2_nickname_field", "name") or "",
         "oauth2_email_field": get_setting(db, "oauth2_email_field", "email") or "",
         "oauth2_avatar_field": get_setting(db, "oauth2_avatar_field", "picture") or "",
-        "callback_base": settings.api_base_url(),
-        "github_callback_url": oauth_service.callback_url("github"),
-        "oauth2_callback_url": oauth_service.callback_url("oauth2"),
+        "callback_base": effective_api_base(db),
+        "github_callback_url": oauth_service.callback_url("github", db),
+        "oauth2_callback_url": oauth_service.callback_url("oauth2", db),
     }
     return data
 

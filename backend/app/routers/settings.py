@@ -12,7 +12,9 @@ from backend.app.deps import get_current_admin
 from backend.app.models import Setting
 from backend.app.schemas import SettingsUpdate
 from backend.app.seed import get_bool_setting, get_setting, set_setting
+from backend.app.site_config import effective_api_base, effective_frontend_base
 from backend.app.themes import THEME_IDS
+from backend.app.version import __version__
 
 router = APIRouter(prefix="/api", tags=["settings"])
 admin_router = APIRouter(
@@ -51,7 +53,9 @@ def public_settings(db: Session = Depends(get_db)) -> dict:
         "enabled_themes": _enabled_themes(db),
         "themes": theme_service.list_all_themes(),
         "upload_max_size": upload_max_size_int,
-        "frontend_base_url": settings.frontend_base_url(),
+        "frontend_base_url": effective_frontend_base(db),
+        "api_base_url": effective_api_base(db),
+        "version": __version__,
         # ---------- 站点元信息 / 功能开关 ----------
         "site_title": get_setting(db, "site_title") or get_setting(db, "site_name", "我的图库"),
         "site_description": get_setting(db, "site_description", ""),

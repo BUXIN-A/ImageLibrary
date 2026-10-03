@@ -307,6 +307,9 @@ class SiteUpdate(BaseModel):
     sitemap_enabled: Optional[bool] = None
     comments_enabled: Optional[bool] = None
     footer_text: Optional[str] = None
+    # 站点地址：留空表示自动推断（PUBLIC_HOST 或访问主机）
+    api_base_url: Optional[str] = None
+    frontend_base_url: Optional[str] = None
 
 
 # ---------------- 登录配置 ----------------

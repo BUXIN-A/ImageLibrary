@@ -64,6 +64,23 @@
           </div>
 
           <div class="card">
+            <div class="card-header"><span>站点地址</span></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label for="api-base-url">API 站点地址</label>
+                <input class="input" id="api-base-url" type="text" placeholder="留空自动，例如 http://192.168.1.10:8080">
+                <div class="form-hint">用于生成前端请求地址与 OAuth 回调地址；当前生效：<code id="api-base-resolved">-</code></div>
+              </div>
+              <div class="form-field">
+                <label for="frontend-base-url">前台站点地址</label>
+                <input class="input" id="frontend-base-url" type="text" placeholder="留空自动，例如 http://192.168.1.10:8000">
+                <div class="form-hint">用于生成分享链接、sitemap 与登录回跳；当前生效：<code id="frontend-base-resolved">-</code></div>
+              </div>
+              <div class="form-hint">留空时自动按 <code>PUBLIC_HOST</code> 环境变量或访问者主机名推断，通常无需填写。填写后需重新保存并刷新页面生效。</div>
+            </div>
+          </div>
+
+          <div class="card">
             <div class="card-header"><span>SEO 与功能开关</span></div>
             <div class="card-body">
               <div class="form-field">
@@ -126,14 +143,14 @@
               <label>robots.txt</label>
               <div class="flex items-center gap-sm">
                 <input class="input" id="robots-url" type="text" readonly value="http://127.0.0.1:8000/robots.txt">
-                <a class="btn btn-outline btn-sm" href="http://127.0.0.1:8000/robots.txt" target="_blank" rel="noopener">打开</a>
+                <a class="btn btn-outline btn-sm" id="robots-link" href="http://127.0.0.1:8000/robots.txt" target="_blank" rel="noopener">打开</a>
               </div>
             </div>
             <div class="form-field">
               <label>sitemap.xml</label>
               <div class="flex items-center gap-sm">
                 <input class="input" id="sitemap-url" type="text" readonly value="http://127.0.0.1:8000/sitemap.xml">
-                <a class="btn btn-outline btn-sm" href="http://127.0.0.1:8000/sitemap.xml" target="_blank" rel="noopener">打开</a>
+                <a class="btn btn-outline btn-sm" id="sitemap-link" href="http://127.0.0.1:8000/sitemap.xml" target="_blank" rel="noopener">打开</a>
               </div>
             </div>
           </div>

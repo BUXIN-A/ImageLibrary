@@ -1,0 +1,37 @@
+# Changelog
+
+本项目的所有重要变更都记录在此文件。
+
+格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [Unreleased]
+
+## [1.1.0] - 2026-10-03
+
+### Added
+
+- 后台「站点设置」新增**站点地址**配置：可分别设置 API 站点地址与前台站点地址（留空则自动推断）。
+- 新增应用版本号（`backend/app/version.py`），并通过接口暴露：`GET /api/health`、`GET /api/settings`、`GET /api/site` 均返回 `version`；后台侧边栏底部显示版本号。
+- 新增本 `CHANGELOG.md`。
+
+### Changed
+
+- 前端 `js/config.js`、OAuth 回调地址、分享链接、`sitemap.xml` 与 OAuth 登录回跳地址，统一按「后台配置 → `PUBLIC_HOST` → 访问者主机名 → 配置文件默认值」解析。
+
+## [1.0.0] - 2026-10-03
+
+### Added
+
+- FastAPI 后端：图片上传与缩略图、多级分类文件夹、标签、审核队列、回收站（软删除/还原/彻底删除）、分享链接、批量导出 ZIP、EXIF 提取。
+- 上传 Token 与凭证上传（默认进入待审核），凭证上传按 IP 限流。
+- 原生 HTML/CSS/JS 前台公开站点与管理后台（独立端口），Notion 风格界面，6 套可切换主题。
+- 主题管理：ZIP 主题包上传 / 下载 / 删除 / 设为默认 / 启用禁用，自定义主题可在前台动态加载。
+- 站点设置：站点名称、SEO 元信息、favicon、robots.txt、sitemap.xml、评论开关、页脚文案。
+- 普通用户账号体系（开放注册 / 登录），图片评论（需登录）与后台评论管理、用户管理。
+- 登录配置：本地账号 / GitHub OAuth / 通用 OAuth2，可在后台开关与配置。
+- 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
+- GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
+
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/BUXIN-A/ImageLibrary/releases/tag/v1.0.0

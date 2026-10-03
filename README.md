@@ -1,5 +1,7 @@
 # ImageLibrary 公开图库系统
 
+> 当前版本：**v1.1.0** ｜ 变更记录见 [CHANGELOG.md](CHANGELOG.md)
+
 一个可公开访问的图片图库系统：**访客无需登录**即可浏览、搜索、查看详情、下载与批量导出图片；**管理员**通过独立端口的后台完成上传与维护；**普通用户**可自行注册登录，参与图片评论；**他人**还可凭管理员发放的「上传 Token」上传图片，经审核通过后公开。前后端分离，前台与后台各自独立端口，图片按多级分类文件夹组织，并提供多套可自定义的主题（内置 + 自定义 ZIP 主题包）。
 
 ---
@@ -294,8 +296,12 @@ E:\environment\python\python313\python.exe run.py
 | `sitemap_enabled` | 是否启用站点地图 | `GET /sitemap.xml`（关闭时 404） |
 | `comments_enabled` | 评论开关 | 前台评论输入显隐；关闭后发表评论返回 403 |
 | `footer_text` | 页脚文案 | 页脚文本（留空则用 `© 年份 站点名称`） |
+| `api_base_url` | API 站点地址（**后台可配置**，留空自动） | 前端 `js/config.js` 的 `API_BASE`、OAuth 回调地址、登录回调基址 |
+| `frontend_base_url` | 前台站点地址（**后台可配置**，留空自动） | 分享链接、`/sitemap.xml`、OAuth 登录回跳 |
 
 - 前台页面加载时通过 `GET /api/site` 拉取上述信息并注入（见 `frontend/js/layout.js`），失败静默降级，不阻断页面渲染。
+- **站点地址解析优先级**：后台配置值 → `PUBLIC_HOST` 环境变量 → 访问者使用的主机名 → 配置文件默认值（`API_BASE_URL` / `FRONTEND_BASE_URL`）。
+  因此以服务器 IP 或域名直连时通常**无需任何配置**；如需固定为特定域名（例如经反向代理后），在后台填写即可。修改后请刷新页面。
 - favicon 上传限制：单文件 ≤ 2 MB，且必须是可识别的图片（`.ico/.png/.jpg/.jpeg/.gif/.webp/.bmp`，其它扩展名统一按 `.png` 保存），文件写入 `data/favicon.*`。
 
 ---
@@ -627,6 +633,8 @@ docker compose -f docker-compose.deploy.yml up -d
 ```
 
 > 每次 `git push` 到 `main` 后，Actions 会重新构建并覆盖 `latest`；服务器执行上面两条命令即可升级，`./data` 中的数据不受影响。
+
+> 也可以完全不改环境变量：启动后在后台 **站点设置 → 站点地址** 中填写「API 站点地址」与「前台站点地址」，效果等同设置 `PUBLIC_HOST`（优先级更高，便于随时调整）。
 
 ### 2. 方式 B：在服务器上本地构建
 

@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """认证路由：登录、获取当前管理员、修改密码。"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
 from backend.app.database import get_db
-from backend.app.deps import get_current_admin
+from backend.app.deps import client_ip, get_current_admin
 from backend.app.models import Admin
+from backend.app.notify_service import CATEGORY_LOGIN, LEVEL_INFO, LEVEL_WARNING, log
 from backend.app.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -18,7 +19,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(
+    payload: LoginRequest, request: Request, db: Session = Depends(get_db)
+) -> TokenResponse:
     """管理员登录：与 admins 表首条记录比对，成功签发 JWT。"""
     admin = db.query(Admin).order_by(Admin.id).first()
     if (
@@ -26,10 +29,18 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
         or admin.username != payload.username
         or not verify_password(payload.password, admin.password_hash)
     ):
+        log(
+            db,
+            LEVEL_WARNING,
+            CATEGORY_LOGIN,
+            f"管理员登录失败：{payload.username}",
+            ip=client_ip(request),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误"
         )
 
+    log(db, LEVEL_INFO, CATEGORY_LOGIN, f"管理员登录成功：{admin.username}", ip=client_ip(request))
     access_token = create_access_token(admin.username)
     return TokenResponse(
         access_token=access_token,

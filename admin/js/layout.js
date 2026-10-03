@@ -32,6 +32,7 @@
     {
       title: "系统",
       items: [
+        { id: "notifications", href: "notifications.html", label: "后台通知", icon: "M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0" },
         { id: "users", href: "users.html", label: "用户管理", icon: "M16 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M9.5 3.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM21 21v-2a4 4 0 00-3-3.87M16.5 3.13a4 4 0 010 7.75" },
         { id: "login-settings", href: "login-settings.html", label: "登录设置", icon: "M6 11V8a6 6 0 0112 0v3M5 11h14v9a1 1 0 01-1 1H6a1 1 0 01-1-1v-9zM12 15v2" },
         { id: "tokens", href: "tokens.html", label: "上传 Token", icon: "M15 7a4 4 0 11-3.5 5.9L9 15.4l-2 .3.3-2 2.6-2.6A4 4 0 0115 7zM15 7h.01" },

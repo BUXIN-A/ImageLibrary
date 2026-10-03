@@ -127,6 +127,28 @@
             </div>
           </div>
 
+          <div class="card">
+            <div class="card-header"><span>通知与日志</span></div>
+            <div class="card-body">
+              <div class="form-field">
+                <label>启动时检测站点地址</label>
+                <label class="switch">
+                  <input type="checkbox" id="site-check-on-startup">
+                  <span class="slider"></span>
+                </label>
+                <div class="form-hint">开启后每次启动会自动检测已配置的站点地址：明确不可用时清空并回退自动推断，不确定时仅告警；结果记录到「后台通知」</div>
+              </div>
+              <div class="form-field">
+                <label>记录用户关键访问</label>
+                <label class="switch">
+                  <input type="checkbox" id="visit-log-enabled">
+                  <span class="slider"></span>
+                </label>
+                <div class="form-hint">记录图片详情浏览与普通用户登录（成功/失败）到「后台通知」</div>
+              </div>
+            </div>
+          </div>
+
           <div class="flex items-center gap-md">
             <button type="submit" class="btn btn-primary" id="site-save">保存设置</button>
           </div>

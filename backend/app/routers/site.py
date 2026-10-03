@@ -14,6 +14,7 @@ from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
 from backend.app.models import Admin
+from backend.app.notify_service import CATEGORY_SITE, LEVEL_INFO, log
 from backend.app.schemas import SiteAddressUpdate, SiteUpdate
 from backend.app.security import verify_password
 from backend.app.seed import get_bool_setting, get_setting, set_setting
@@ -25,6 +26,7 @@ from backend.app.site_config import (
     effective_api_base,
     effective_frontend_base,
 )
+from backend.app.site_monitor import ADDRESS_LABELS
 from backend.app.version import __version__
 
 router = APIRouter(prefix="/api", tags=["site"])
@@ -87,6 +89,9 @@ def _site_admin(db: Session) -> dict:
     data["frontend_base_url"] = configured_frontend_base(db)
     data["admin_api_base_url"] = configured_admin_api_base(db)
     data["robots_extra"] = get_setting(db, "robots_extra", "")
+    # 通知 / 服务日志开关
+    data["site_check_on_startup"] = get_bool_setting(db, "site_check_on_startup", True)
+    data["visit_log_enabled"] = get_bool_setting(db, "visit_log_enabled", True)
     return data
 
 
@@ -158,6 +163,16 @@ def set_site_address(payload: SiteAddressUpdate, db: Session = Depends(get_db)) 
 
     for key in keys:
         set_setting(db, key, value)
+
+    labels = ADDRESS_LABELS
+    summary = "；".join(f"{labels.get(key, key)}={'（清除）' if not value else value}" for key in keys)
+    log(
+        db,
+        LEVEL_INFO,
+        CATEGORY_SITE,
+        "站点地址已更新（后台设置）",
+        detail=summary,
+    )
     return _site_admin(db)
 
 

@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-03
+
+### Added
+
+- **后台通知界面**（后台「系统 → 后台通知」）：集中记录服务日志，支持按级别（信息/警告/错误）、分类、关键词与「仅看未读」筛选，可标记已读、批量删除、清空已读或全部（含统计卡片与未读高亮）。记录范围：
+  - 服务启动（含版本号与时间）；
+  - 站点地址检测与变更（后台设置变更、启动自检结果）；
+  - 服务端错误（HTTP 500 未捕获异常，含请求方法与路径、来源 IP）；
+  - 管理员登录成功/失败（失败含来源 IP）；
+  - 用户关键访问：图片详情浏览、普通用户登录成功/失败。
+- **启动时自动检测站点地址可用性**（默认开启，可在「站点设置 → 通知与日志」关闭）：采用「折中」策略——仅**明确失败**时清空并回退自动推断（连上了但响应异常、连接被拒绝/端口不通），**不确定**情况（域名解析失败、超时、网络不可达）只写告警、不清空；结果记录到后台通知。检测在后台线程执行，不阻塞服务启动。
+- **清空站点地址命令**：`python run.py clear-site-address`（Docker：`docker compose exec <服务名> python run.py clear-site-address`），可在后台无法访问时于服务器终端直接清空 API / 后台专属 / 前台三项站点地址，并写入一条通知。
+- 新增设置项 `site_check_on_startup`、`visit_log_enabled`（均默认 `true`），可在后台「站点设置 → 通知与日志」中调整。
+- 新增管理端接口：`GET /api/admin/notifications`、`/meta`、`/summary`，`POST /read`、`/delete`、`/clear`。
+- 新增接口 `POST /api/admin/site/address` 的变更日志（站点地址变更写入后台通知）。
+
 ## [1.2.1] - 2026-10-03
 
 ### Added
@@ -70,7 +86,8 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.0...v1.1.1

@@ -307,6 +307,9 @@ class SiteUpdate(BaseModel):
     sitemap_enabled: Optional[bool] = None
     comments_enabled: Optional[bool] = None
     footer_text: Optional[str] = None
+    # 通知 / 服务日志开关
+    site_check_on_startup: Optional[bool] = None
+    visit_log_enabled: Optional[bool] = None
     # 站点地址：留空表示自动推断（PUBLIC_HOST 或访问主机）
     api_base_url: Optional[str] = None
     frontend_base_url: Optional[str] = None
@@ -370,3 +373,23 @@ class CommentBatchRequest(BaseModel):
 
     ids: list[int] = Field(default_factory=list)
     action: str
+
+
+# ---------------- 后台通知 ----------------
+class NotificationReadRequest(BaseModel):
+    """标记通知为已读请求：ids 非空时按 id 标记，all 为真时全部标记。"""
+
+    ids: list[int] = Field(default_factory=list)
+    all: bool = False
+
+
+class NotificationBatchRequest(BaseModel):
+    """通知批量删除请求。"""
+
+    ids: list[int] = Field(default_factory=list)
+
+
+class NotificationClearRequest(BaseModel):
+    """清空通知请求：only_read 为真时仅清空已读通知。"""
+
+    only_read: bool = False

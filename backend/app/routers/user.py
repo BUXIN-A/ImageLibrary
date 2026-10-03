@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """普通用户路由：注册、登录与获取当前用户信息。"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
 from backend.app.database import get_db
-from backend.app.deps import get_current_user
+from backend.app.deps import client_ip, get_current_user
 from backend.app.models import User, now
+from backend.app.notify_service import CATEGORY_VISIT, LEVEL_INFO, LEVEL_WARNING, log
 from backend.app.schemas import (
     UserAuthResponse,
     UserLoginRequest,
@@ -14,6 +15,7 @@ from backend.app.schemas import (
     UserRegisterRequest,
 )
 from backend.app.security import create_access_token, hash_password, verify_password
+from backend.app.seed import get_bool_setting
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -64,14 +66,25 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)) -> Use
 
 
 @router.post("/login", response_model=UserAuthResponse)
-def login(payload: UserLoginRequest, db: Session = Depends(get_db)) -> UserAuthResponse:
+def login(
+    payload: UserLoginRequest, request: Request, db: Session = Depends(get_db)
+) -> UserAuthResponse:
     """用户登录：校验存在、密码与启用状态，成功后更新最后登录时间。"""
     user = db.query(User).filter(User.username == payload.username).first()
+    log_visit = get_bool_setting(db, "visit_log_enabled", True)
     if (
         user is None
         or not user.password_hash
         or not verify_password(payload.password, user.password_hash)
     ):
+        if log_visit:
+            log(
+                db,
+                LEVEL_WARNING,
+                CATEGORY_VISIT,
+                f"用户登录失败：{payload.username}",
+                ip=client_ip(request),
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误"
         )
@@ -81,6 +94,8 @@ def login(payload: UserLoginRequest, db: Session = Depends(get_db)) -> UserAuthR
     user.last_login_at = now()
     db.commit()
     db.refresh(user)
+    if log_visit:
+        log(db, LEVEL_INFO, CATEGORY_VISIT, f"用户登录成功：{user.username}", ip=client_ip(request))
     return _auth_response(user)
 
 

@@ -57,4 +57,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # 支持以命令行方式执行管理命令，如：python run.py clear-site-address
+    from backend.app import cli
+
+    if sys.argv[1:]:
+        sys.exit(cli.run(sys.argv[1:]))
     main()

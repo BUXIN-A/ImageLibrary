@@ -28,6 +28,8 @@
     els.robotsExtra = document.getElementById("robots-extra");
     els.sitemapEnabled = document.getElementById("sitemap-enabled");
     els.commentsEnabled = document.getElementById("comments-enabled");
+    els.siteCheckOnStartup = document.getElementById("site-check-on-startup");
+    els.visitLogEnabled = document.getElementById("visit-log-enabled");
     els.saveBtn = document.getElementById("site-save");
     els.refreshBtn = document.getElementById("refresh-btn");
     els.faviconPreview = document.getElementById("favicon-preview");
@@ -246,6 +248,8 @@
     els.robotsExtra.value = data.robots_extra || "";
     els.sitemapEnabled.checked = data.sitemap_enabled !== false;
     els.commentsEnabled.checked = data.comments_enabled !== false;
+    els.siteCheckOnStartup.checked = data.site_check_on_startup !== false;
+    els.visitLogEnabled.checked = data.visit_log_enabled !== false;
     setResolved(data);
     setFaviconPreview(data.favicon || "");
   }
@@ -275,7 +279,9 @@
           allow_index: els.allowIndex.checked,
           robots_extra: els.robotsExtra.value,
           sitemap_enabled: els.sitemapEnabled.checked,
-          comments_enabled: els.commentsEnabled.checked
+          comments_enabled: els.commentsEnabled.checked,
+          site_check_on_startup: els.siteCheckOnStartup.checked,
+          visit_log_enabled: els.visitLogEnabled.checked
         });
         UI.toast("站点设置已保存", "success");
         load();

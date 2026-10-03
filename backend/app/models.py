@@ -172,6 +172,27 @@ class User(Base):
     )
 
 
+class Notification(Base):
+    """后台通知 / 服务日志。
+
+    记录服务启动、站点地址检测与变更、服务端错误、管理员登录、用户访问等事件，
+    供后台「通知」界面查看。
+    """
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # info / warning / error
+    level: Mapped[str] = mapped_column(String(16), default="info", index=True)
+    # startup / site / error / login / visit
+    category: Mapped[str] = mapped_column(String(32), default="startup", index=True)
+    message: Mapped[str] = mapped_column(String(500))
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+
+
 class Comment(Base):
     """图片评论。"""
 

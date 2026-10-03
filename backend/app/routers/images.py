@@ -3,7 +3,7 @@
 import math
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy import or_
@@ -12,9 +12,12 @@ from starlette.background import BackgroundTask
 
 from backend.app.config import settings
 from backend.app.database import get_db
+from backend.app.deps import client_ip
 from backend.app.export_service import build_zip_file, cleanup_file
 from backend.app.models import Folder, Image, Tag
+from backend.app.notify_service import CATEGORY_VISIT, LEVEL_INFO, log
 from backend.app.schemas import ExportRequest, ImageOut, PageResponse
+from backend.app.seed import get_bool_setting
 
 router = APIRouter(prefix="/api", tags=["images"])
 
@@ -111,7 +114,7 @@ def export_images(
 
 
 @router.get("/images/{image_id}", response_model=ImageOut)
-def get_image(image_id: int, db: Session = Depends(get_db)) -> Image:
+def get_image(image_id: int, request: Request, db: Session = Depends(get_db)) -> Image:
     """公开图片详情，浏览量 +1；不存在或未公开返回 404。"""
     image = _public_query(db).filter(Image.id == image_id).first()
     if image is None:
@@ -119,6 +122,14 @@ def get_image(image_id: int, db: Session = Depends(get_db)) -> Image:
     image.views = (image.views or 0) + 1
     db.commit()
     db.refresh(image)
+    if get_bool_setting(db, "visit_log_enabled", True):
+        log(
+            db,
+            LEVEL_INFO,
+            CATEGORY_VISIT,
+            f"浏览图片 #{image.id}：{image.title or image.original_name}",
+            ip=client_ip(request),
+        )
     return image
 
 

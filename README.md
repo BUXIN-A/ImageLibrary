@@ -29,6 +29,7 @@
 - **Notion 风格界面**：前台与后台均采用接近 Notion 的简洁排版与配色（近黑正文、浅灰底、细边框、克制阴影）。
 - **站点设置**：后台可维护站点名称、SEO（标题/描述/关键词/OG）、favicon、robots、sitemap、评论开关与页脚文案，并可配置 **API 站点地址 / 前台站点地址 / 后台专属 API 地址**（均留空自动推断），前台动态生效。
 - **上传进度**：后台上传与凭证上传均显示实时进度条（已上传百分比与字节数），传输完成后提示「服务器处理中…」，失败时保留进度并给出原因。
+- **后台通知 / 服务日志**：后台「系统 → 后台通知」集中记录服务启动（含版本）、站点地址检测与变更、服务端错误（HTTP 500 未捕获异常）、管理员登录（成功/失败，失败含来源 IP）与用户关键访问（图片浏览、普通用户登录）；支持按级别/分类/关键词与「仅看未读」筛选，可标记已读、批量删除、清空已读或全部。程序启动时可自动检测站点地址可用性（`site_check_on_startup`，默认开启）。
 - **用户与社区**：普通用户注册/登录（本地账号 + GitHub + 通用 OAuth2）、图片评论（需登录，可在站点设置关闭）、后台用户管理与评论管理。
 - **根路径跳转**：API（8080）根路径重定向到交互式文档；前台（8000）根路径进入首页；后台（8001）根路径按登录状态进入仪表盘或登录页。
 - **限流**：凭证上传按客户端 IP 做进程内滑动窗口限流。
@@ -53,7 +54,7 @@ ImageLibrary/
 │       ├── main.py              # FastAPI 应用装配（CORS、根路径重定向、静态媒体挂载、路由注册、启动初始化）
 │       ├── config.py            # 全局配置（路径、端口、密钥、管理员、上传限制、限流、前台/API 对外地址）
 │       ├── database.py          # SQLAlchemy 引擎与会话
-│       ├── models.py            # ORM 模型（admins / folders / images / tags / image_tags / upload_tokens / settings / users / comments）
+│       ├── models.py            # ORM 模型（admins / folders / images / tags / image_tags / upload_tokens / settings / users / comments / notifications）
 │       ├── schemas.py           # Pydantic 请求/响应模型
 │       ├── security.py          # 密码哈希 + JWT + Token 生成
 │       ├── deps.py              # 管理员认证依赖、普通用户认证依赖、上传 Token 校验、客户端 IP 提取
@@ -62,8 +63,11 @@ ImageLibrary/
 │       ├── export_service.py    # 打包 ZIP
 │       ├── theme_service.py     # 自定义主题：枚举、ZIP 导入/导出/删除、路径解析
 │       ├── oauth_service.py     # OAuth：授权 URL 构建、code 换令牌、用户资料拉取与字段映射、state 管理
+│       ├── notify_service.py    # 后台通知/服务日志统一写入（log / record）
+│       ├── site_monitor.py      # 站点地址可用性探测、启动自检与清空
 │       ├── static_server.py     # 通用静态站点 ASGI 应用工厂（前台可挂载 robots/sitemap/favicon 动态路由）
-│       ├── seed.py              # 初始化默认管理员与默认设置（含站点/登录配置默认值）
+│       ├── seed.py              # 初始化默认管理员与默认设置（含站点/登录/通知配置默认值）
+│       ├── cli.py               # 命令行工具（clear-site-address 等）
 │       ├── themes.py            # 预设主题常量（6 套）
 │       └── routers/             # API 路由
 │           ├── auth.py          # 管理员登录 / 当前管理员 / 修改密码
@@ -82,6 +86,7 @@ ImageLibrary/
 │           ├── admin_users.py   # 用户管理（管理员：列表/启禁用/删除/重置密码）
 │           ├── stats.py         # 仪表盘统计（管理员）
 │           ├── admin_images.py  # 后台图片管理（上传/批量/导出/回收站/分享）
+│           ├── notifications.py # 后台通知（列表/统计/标记已读/删除/清空）
 │           └── credential.py    # 凭证上传（含限流）
 ├── frontend/                    # 前台公开站点（端口 8000）
 │   ├── index.html  image.html  search.html  folder.html  upload.html  share.html  login.html
@@ -95,11 +100,12 @@ ImageLibrary/
 │   ├── index.html  login.html  dashboard.html  upload.html  images.html  review.html
 │   ├── folders.html  tags.html  tokens.html  recycle.html  settings.html
 │   ├── site-settings.html  themes.html  users.html  comments.html  login-settings.html
+│   ├── notifications.html
 │   ├── css/                     # base.css / components.css / layout.css
 │   ├── js/
 │   │   ├── api.js  auth.js  config.js  layout.js  theme.js  ui.js
 │   │   └── pages/               # dashboard.js / upload.js / images.js / review.js / folders.js / tags.js / tokens.js / recycle.js / settings.js
-│   │                            # + site-settings.js / themes.js / users.js / comments.js / login-settings.js
+│   │                            # + site-settings.js / themes.js / users.js / comments.js / login-settings.js / notifications.js
 │   ├── themes/                  # 与前台同名的 6 套主题
 │   └── assets/
 ├── data/                        # 运行时生成（已被 .gitignore 忽略）
@@ -108,7 +114,7 @@ ImageLibrary/
 │   ├── thumbnails/              # 缩略图（JPEG）
 │   ├── themes/                  # 自定义主题：themes/<id>/{theme.json,theme.css[,preview.png]}
 │   └── favicon.*                # 上传的站点图标（如 favicon.png）
-├── run.py                       # 一键启动三服务
+├── run.py                       # 一键启动三服务；亦支持管理命令（如 python run.py clear-site-address）
 ├── requirements.txt             # Python 依赖
 └── README.md
 ```
@@ -301,6 +307,8 @@ E:\environment\python\python313\python.exe run.py
 | `api_base_url` | API 站点地址（**后台可配置**，留空自动） | 前端 `js/config.js` 的 `API_BASE`、OAuth 回调地址、登录回调基址 |
 | `frontend_base_url` | 前台站点地址（**后台可配置**，留空自动） | 分享链接、`/sitemap.xml`、OAuth 登录回跳 |
 | `admin_api_base_url` | 后台专属 API 地址（留空=与 `api_base_url` 相同） | 仅后台 `js/config.js` 的 `API_BASE`；可填本地/内网地址以便快速上传、绕过域名与反向代理 |
+| `site_check_on_startup` | 启动时自动检测站点地址（默认 `true`） | 无（后端行为）；检测结果写入后台通知 |
+| `visit_log_enabled` | 记录用户关键访问（默认 `true`） | 无（后端行为）；图片浏览与普通用户登录写入后台通知 |
 
 - 前台页面加载时通过 `GET /api/site` 拉取上述信息并注入（见 `frontend/js/layout.js`），失败静默降级，不阻断页面渲染。
 - **站点地址解析优先级**：后台配置值 → `PUBLIC_HOST` 环境变量 → 访问者使用的主机名 → 配置文件默认值（`API_BASE_URL` / `FRONTEND_BASE_URL`）。
@@ -308,6 +316,9 @@ E:\environment\python\python313\python.exe run.py
 - **后台专属 API 地址**优先于上述规则，且只影响后台管理端（前台不受影响）。注意浏览器要求协议一致：HTTPS 下的后台页面无法请求 `http://` 接口。
 - **站点地址专用设置流程**：上述三项地址在后台为**只读**，统一通过「设置站点地址」按钮弹窗修改——弹窗内可选择设置目标（API / 后台专属 / 前台，可多选），需输入管理员账户与密码（后端二次校验），并会**先用当前浏览器探测新地址**（API 类地址请求 `/api/health`，前台地址探测可达性）；探测失败即取消保存、不改动原配置。旁边另有「清除站点地址」按钮可一键恢复自动推断。
 - favicon 上传限制：单文件 ≤ 2 MB，且必须是可识别的图片（`.ico/.png/.jpg/.jpeg/.gif/.webp/.bmp`，其它扩展名统一按 `.png` 保存），文件写入 `data/favicon.*`。
+- **后台通知 / 服务日志**：后台「系统 → 后台通知」（`notifications.html`）记录服务启动、站点地址检测与变更、服务端错误、管理员登录与用户关键访问；可在「站点设置 → 通知与日志」调整 `site_check_on_startup`（启动自检）与 `visit_log_enabled`（访问记录）开关。
+- **启动自检采用「折中」策略**：仅**明确失败**时清空站点地址并回退自动推断（连上了但响应异常、连接被拒绝/端口不通）；**不确定**时（域名解析失败、连接超时、网络不可达）只写告警、不清空。自检在后台线程执行，不阻塞服务启动。
+- **清空站点地址命令**：`python run.py clear-site-address`（Docker 见后文运维命令），可在后台无法访问时于服务器终端直接清空三项站点地址并恢复自动推断。
 
 ---
 
@@ -529,6 +540,13 @@ API 基础地址：`http://127.0.0.1:8080`。除特别标注外均为公开接�
 | GET | `/api/admin/site` | 读取完整站点设置（含 `robots_extra`） |
 | PUT | `/api/admin/site` | 更新站点设置（SEO/favicon/开关/页脚等） |
 | POST | `/api/admin/site/favicon` | 上传站点图标（表单字段 `file`） |
+| POST | `/api/admin/site/address` | 设置/清除站点地址（需管理员账号密码二次校验） |
+| GET | `/api/admin/notifications` | 通知列表（`level` / `category` / `q` / `unread_only` 筛选） |
+| GET | `/api/admin/notifications/meta` | 通知级别与分类选项 |
+| GET | `/api/admin/notifications/summary` | 通知统计（总数、未读、各级别数量） |
+| POST | `/api/admin/notifications/read` | 标记已读（`ids` 或 `all`） |
+| POST | `/api/admin/notifications/delete` | 批量删除通知（`ids`） |
+| POST | `/api/admin/notifications/clear` | 清空通知（`only_read` 为真时仅清空已读） |
 | GET | `/api/admin/themes` | 主题列表（内置 + 自定义） |
 | POST | `/api/admin/themes` | 上传自定义主题 ZIP（表单字段 `file`） |
 | GET | `/api/admin/themes/{id}/download` | 下载主题 ZIP |
@@ -585,11 +603,15 @@ CORS 默认**放行任意 http/https 来源**（含不带端口的标准 80/443 
 favicon 会被浏览器强缓存，请**强制刷新**（Ctrl+F5）或清除缓存后再查看。图标文件写入 `data/favicon.*`，可通过 `GET /api/favicon` 验证是否已生效。
 
 **Q12：站点地址填错，进不去后台了怎么办？**
-后台「站点地址」只能通过「设置站点地址」按钮修改，且保存前会用浏览器探测新地址，正常情况下不会填错。若确实无法进入后台，任选其一恢复：
+后台「站点地址」只能通过「设置站点地址」按钮修改，且保存前会用浏览器探测新地址，正常情况下不会填错；程序启动时也会自动检测（默认开启），明确不可用会自动清空。若确实无法进入后台，任选其一恢复：
 
-1. **环境变量方式**：设置 `PUBLIC_HOST=你的域名或IP` 后重启容器，此时把站点地址留空即按它自动推断；
-2. **直接清空数据库中的站点地址**（Docker 部署）：
-
+1. **推荐：使用清空命令**（Docker 部署）：
+```bash
+docker compose -f docker-compose.deploy.yml exec imagelibrary python run.py clear-site-address
+```
+   非 Docker 则在项目根目录执行：`python run.py clear-site-address`。
+2. **环境变量方式**：设置 `PUBLIC_HOST=你的域名或IP` 后重启容器，此时把站点地址留空即按它自动推断；
+3. **直接清空数据库中的站点地址**（Docker 部署）：
 ```bash
 docker compose -f docker-compose.deploy.yml exec imagelibrary python -c "import sqlite3;c=sqlite3.connect('/app/data/app.db');c.execute(\"DELETE FROM settings WHERE key IN ('api_base_url','admin_api_base_url','frontend_base_url')\");c.commit()"
 ```
@@ -752,6 +774,9 @@ docker compose -f docker-compose.deploy.yml up -d    # 应用更新
 
 # 方式 B（本地构建）
 docker compose up -d --build
+
+# 清空已配置的站点地址（API / 后台专属 / 前台），恢复自动推断
+docker compose -f docker-compose.deploy.yml exec imagelibrary python run.py clear-site-address
 ```
 
 容器内置健康检查（请求 `/api/health`），`docker compose ps` 会显示 `healthy`。

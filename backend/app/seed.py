@@ -31,6 +31,11 @@ def _default_settings() -> dict[str, str]:
         "sitemap_enabled": "true",
         "comments_enabled": "true",
         "footer_text": "",
+        # ---------- 通知 / 服务日志 ----------
+        # 启动时自动检测已配置的站点地址可用性（默认开启）
+        "site_check_on_startup": "true",
+        # 记录用户关键访问（图片详情浏览、普通用户登录）
+        "visit_log_enabled": "true",
         # ---------- 站点地址（留空则按 PUBLIC_HOST / 请求主机自动推断） ----------
         "api_base_url": "",
         "frontend_base_url": "",

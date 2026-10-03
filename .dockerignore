@@ -10,6 +10,7 @@ venv/
 
 # 版本控制与 IDE
 .git/
+.github/
 .gitignore
 .idea/
 .vscode/

@@ -577,14 +577,9 @@ favicon 会被浏览器强缓存，请**强制刷新**（Ctrl+F5）或清除缓�
 
 ## 十八、Docker 部署（Linux 服务器）
 
-镜像内**单容器**同时运行 API、前台与管理后台三个服务。项目根目录已提供 `Dockerfile`、`docker-compose.yml`、`.dockerignore`。
+镜像内**单容器**同时运行 API、前台与管理后台三个服务。仓库已配置 GitHub Actions：推送到 `main` 后会自动构建**多架构**镜像并推送到 **GHCR**（`ghcr.io/buxin-a/imagelibrary:latest`），因此服务器**无需源码、无需构建**即可部署。
 
-### 1. 构建与启动（推荐 Docker Compose）
-
-```bash
-cd ImageLibrary
-docker compose up -d --build
-```
+相关文件：`Dockerfile`、`docker-compose.yml`（本地构建）、`docker-compose.deploy.yml`（服务器拉取镜像）、`.env.example`、`.github/workflows/docker-publish.yml`。
 
 假设服务器 IP 为 `192.168.1.10`，默认访问地址：
 
@@ -595,9 +590,60 @@ docker compose up -d --build
 | API 文档 | http://192.168.1.10:8080/docs |
 | 健康检查 | http://192.168.1.10:8080/api/health |
 
-### 2. 通过环境变量配置
+### 1. 方式 A：拉取 GHCR 镜像部署（推荐，服务器零构建）
 
-在项目根目录新建 `.env`（与 `docker-compose.yml` 同级，Compose 会自动读取）：
+**首次准备（只需一次）**：Actions 首次成功推送后，镜像包默认是**私有**的，需改为公开，否则服务器拉取会报 401：
+
+> GitHub → 你的头像 → **Packages** → `imagelibrary` → 右侧 **Package settings** → 底部 **Danger Zone** → **Change visibility** → **Public**
+
+**服务器上执行**：
+
+```bash
+mkdir -p /opt/imagelibrary && cd /opt/imagelibrary
+
+# 仅需两个文件（也可 git clone 整个仓库）
+curl -fsSLO https://raw.githubusercontent.com/BUXIN-A/ImageLibrary/main/docker-compose.deploy.yml
+curl -fsSL  https://raw.githubusercontent.com/BUXIN-A/ImageLibrary/main/.env.example -o .env
+
+# 编辑 .env：至少修改 SECRET_KEY、ADMIN_PASSWORD、PUBLIC_HOST（填服务器 IP 或域名）
+vi .env
+
+# 拉取镜像并启动
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+> 若不想把镜像设为公开，可先在服务器登录 GHCR（PAT 需 `read:packages` 权限）：
+> ```bash
+> echo <你的PAT> | docker login ghcr.io -u BUXIN-A --password-stdin
+> ```
+
+**更新到最新版本**：
+
+```bash
+cd /opt/imagelibrary
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+> 每次 `git push` 到 `main` 后，Actions 会重新构建并覆盖 `latest`；服务器执行上面两条命令即可升级，`./data` 中的数据不受影响。
+
+### 2. 方式 B：在服务器上本地构建
+
+适合无法访问 `ghcr.io` 或需要自行改代码的情况：
+
+```bash
+git clone https://github.com/BUXIN-A/ImageLibrary.git
+cd ImageLibrary
+cp .env.example .env    # 按需修改
+docker compose up -d --build
+```
+
+更新：`git pull && docker compose up -d --build`。
+
+### 3. 通过环境变量配置
+
+把 `.env.example` 复制为 `.env`（与 compose 文件同目录，Compose 会自动读取）后按需修改：
 
 ```dotenv
 # 端口：同时决定容器内监听端口与宿主机映射端口
@@ -627,22 +673,22 @@ RATE_LIMIT_WINDOW_SECONDS=60
 TZ=Asia/Shanghai
 ```
 
-保存后执行 `docker compose up -d` 生效（改动端口等需重建容器，`up -d` 会自动重建）。
+保存后重新执行部署命令即可生效（方式 A：`docker compose -f docker-compose.deploy.yml up -d`；方式 B：`docker compose up -d`）。
 
-也可不改文件，直接命令行传参：
+也可不改文件，直接命令行传参（以方式 A 为例）：
 
 ```bash
 API_PORT=9080 FRONTEND_PORT=9000 ADMIN_PORT=9001 \
 PUBLIC_HOST=192.168.1.10 SECRET_KEY=your-secret \
 ADMIN_USERNAME=admin ADMIN_PASSWORD=strong-password \
-docker compose up -d
+docker compose -f docker-compose.deploy.yml up -d
 ```
 
-### 3. 不用 Compose（直接 docker run）
+### 4. 不用 Compose（直接 docker run）
+
+直接使用 GHCR 镜像（无需克隆源码）：
 
 ```bash
-docker build -t imagelibrary:latest .
-
 docker run -d --name imagelibrary --restart unless-stopped \
   -p 8080:8080 -p 8000:8000 -p 8001:8001 \
   -e HOST=0.0.0.0 \
@@ -651,12 +697,13 @@ docker run -d --name imagelibrary --restart unless-stopped \
   -e SECRET_KEY=your-secret \
   -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD=strong-password \
   -v /opt/imagelibrary/data:/app/data \
-  imagelibrary:latest
+  ghcr.io/buxin-a/imagelibrary:latest
 ```
 
+> 更新：`docker pull ghcr.io/buxin-a/imagelibrary:latest`，再 `docker rm -f imagelibrary` 重新 `run`（推荐直接用 Compose 管理）。
 > 端口必须一一对应：容器内监听端口由 `API_PORT/FRONTEND_PORT/ADMIN_PORT` 决定，`-p` 映射须保持一致（如 `-p 9080:9080`）。
 
-### 4. 数据持久化与备份
+### 5. 数据持久化与备份
 
 容器内全部数据位于 `/app/data`：数据库 `app.db`、原图 `uploads/`、缩略图 `thumbnails/`、自定义主题 `themes/`、`favicon.*`。**务必挂载该目录**，否则容器重建将丢失数据：
 
@@ -666,19 +713,25 @@ docker run -d --name imagelibrary --restart unless-stopped \
 
 Compose 默认挂载项目下的 `./data`。备份时直接打包该目录即可。
 
-### 5. 常用运维命令
+### 6. 常用运维命令
+
+方式 A（拉取镜像）把下面的 `docker compose` 换成 `docker compose -f docker-compose.deploy.yml`：
 
 ```bash
-docker compose logs -f        # 查看日志
-docker compose restart        # 重启
-docker compose down           # 停止并移除容器（./data 数据保留）
-docker compose up -d --build  # 更新代码后重新构建并启动
-docker compose ps             # 查看状态（含 health 状态）
+docker compose -f docker-compose.deploy.yml ps       # 查看状态（含 health）
+docker compose -f docker-compose.deploy.yml logs -f  # 查看日志
+docker compose -f docker-compose.deploy.yml restart  # 重启
+docker compose -f docker-compose.deploy.yml down     # 停止并移除容器（./data 保留）
+docker compose -f docker-compose.deploy.yml pull     # 拉取最新镜像
+docker compose -f docker-compose.deploy.yml up -d    # 应用更新
+
+# 方式 B（本地构建）
+docker compose up -d --build
 ```
 
 容器内置健康检查（请求 `/api/health`），`docker compose ps` 会显示 `healthy`。
 
-### 6. HTTPS / 反向代理
+### 7. HTTPS / 反向代理
 
 推荐在前端加 Nginx / Caddy / Traefik 提供 HTTPS。此时：
 

@@ -47,11 +47,20 @@
     );
   }
 
-  /** 返回媒体（原图/缩略图）完整地址。 */
-  function mediaUrl(path) {
+  /**
+   * 返回媒体（原图/缩略图）完整地址。
+   * @param {string} path 相对路径
+   * @param {string} [token] 后台媒体签名（拼接到 access 查询参数）
+   */
+  function mediaUrl(path, token) {
     if (!path) return "";
-    if (/^https?:\/\//i.test(path)) return path;
-    return (window.API && API.base ? API.base : "") + path;
+    var url = /^https?:\/\//i.test(path)
+      ? path
+      : (window.API && API.base ? API.base : "") + path;
+    if (token) {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "access=" + encodeURIComponent(token);
+    }
+    return url;
   }
 
   /** 轻提示。type: info | success | error | warning */

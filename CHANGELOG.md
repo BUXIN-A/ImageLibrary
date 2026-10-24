@@ -6,6 +6,98 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-24
+
+### Added
+
+- **Alembic 数据库迁移**：新增 `alembic.ini`、`migrations/` 与基线 revision `0001`，启动时自动执行迁移。
+  - 空库直接 `upgrade head`；已有业务表但无 `alembic_version` 的旧库先 `stamp 0001` 再升级，不丢失图片、分类、Token、评论数据。
+  - `0002` 增加分类密码字段、`images.uploaded_by` 外键改为 `ON DELETE SET NULL`、新增性能索引、扁平化历史文件夹并切换主题设置键。
+  - `0003` 为早于「后台通知」功能创建的旧库补齐 `notifications` 表。
+  - Docker 镜像同步包含 `alembic.ini` 与 `migrations/`。
+- **一级分类与分类密码**：
+  - 分类最多一级，新增 `folders.password_hash` / `folders.auth_version`。
+  - 管理端创建/更新分类支持设置、修改、清除密码（bcrypt），接口仅返回 `has_password`。
+  - 新增 `POST /api/folders/{id}/unlock`，校验密码并签发限时 `folder_token`；按「IP + 分类」限流（5 分钟 10 次）。
+  - 未解锁时分类列表、详情、下载、评论、分享与媒体访问均被拒绝；聚合列表默认排除加密分类内容。
+  - 密码变更/清除递增 `auth_version`，旧令牌立即失效。
+  - 新增 `GET /api/folders/summary` 返回全部/未分类/分类/加密分类数量。
+- **视频支持**：
+  - 支持 `mp4`、`m4v`、`mov`、`webm`、`ogv`，按扩展名 + 文件头（`ftyp` / EBML / `OggS`）校验，拒绝伪装文件。
+  - 新增 `MAX_VIDEO_UPLOAD_SIZE`（默认 200 MB）；Token 的 `max_file_size` 对图片与视频均生效。
+  - 上传改为 1 MB 分块落盘，避免大文件整体读入内存。
+  - 视频不生成缩略图、不提取 EXIF；列表使用占位封面与播放标识，详情使用原生播放器。
+  - 媒体路由支持单段 `Range`、`206`、`Accept-Ranges`；下载与 ZIP 导出包含视频原文件。
+  - 响应新增 `is_video` / `media_type`，站点信息返回视频上限与允许格式。
+- **受控媒体路由**：新增 `backend/app/media_service.py` 与 `routers/media.py`。
+  - 公开、审核中、已拒绝、回收站、加密分类与后台预览分别按状态、分类令牌与后台签名令牌授权。
+  - 后台列表为每项附带短时 `media_token`（URL 参数 `access`，默认 30 分钟）。
+  - 新增 `MEDIA_TOKEN_EXPIRE_MINUTES`、`FOLDER_TOKEN_EXPIRE_MINUTES` 配置。
+  - 媒体响应带 ETag、`Last-Modified`、`Cache-Control` 与 `Accept-Ranges`，未授权统一 404。
+- **主题重构（基础 / 导航）**：
+  - 前台改为 `frontend/themes/base/` 与 `frontend/themes/nav/` 两套完全自包含主题（HTML/CSS/JS/assets）。
+  - 新增 `theme_settings_service.py` 与 `routers/theme_settings.py`，设置键改为 `active_theme`、`theme_config`、`theme_presets`。
+  - 主题预设存放于 `data/theme-presets/<theme_id>/<preset_id>.css`，支持上传、移除、设为默认；每个主题至少保留一个。
+  - 新增公开接口 `GET /api/theme`、`GET /api/theme/nav-stats`、`GET /api/theme/preview/{theme_id}`。
+  - 新增管理接口 `GET /api/admin/theme-settings`、`PUT /api/admin/theme-settings/active`、预设上传/删除/设为默认与主题配置更新。
+  - 后台「主题设置」改为「主题 / 主题配置」双标签；导航主题支持首页统计开关。
+  - 前台预设通过 `/presets/{id}.css` 加载，`localStorage` 键为 `il_preset_base` / `il_preset_nav`。
+- **导航主题首页**：展示统计面板、全部/未分类/分类入口（含数量与锁定标识）以及全部公开图片网格。
+- **可信代理配置**：新增 `TRUSTED_PROXIES`（IP/CIDR，逗号分隔），仅当直连来源可信时才采信 `X-Forwarded-For` / `X-Forwarded-Proto`。
+- **性能优化**：
+  - 启用 GZip（大于 500 字节的 JSON/HTML/CSS/JS）。
+  - 新增 `images.folder_id`、`images.thumb_name`、`images(status,is_deleted,created_at)`、`comments(image_id,status)` 索引。
+  - 图片/评论列表使用关联预加载，减少 N+1 查询。
+  - 前台 `config.js` 注入主题配置并使用短缓存；HTML 为 `no-cache`，主题资源长缓存；页面脚本使用 `defer`，导航链接支持悬停/聚焦预取。
+  - 媒体支持 ETag/304 与 Range，避免重复传输。
+
+### Changed
+
+- **分类体系改为一级分类**：管理端不再接受 `parent_id`，公开分类接口返回扁平列表；删除分类后图片归为未分类。
+- **分类页与筛选**：前后台移除嵌套树与「包含子文件夹」开关，改为「全部 / 未分类 / 各分类」。
+- **公开序列化**：不再返回 `original_name`；新增 `folder_locked`；后台序列化附带 `media_token`。
+- **前台详情页**：不显示原始文件名，无标题时显示「未命名图片」；视频使用播放器；加密分类未解锁时提示并引导解锁。
+- **上传页**：管理员上传页与凭证上传页均支持图片/视频选择、格式与大小上限提示。
+- **站点设置**：
+  - `GET/PUT /api/admin/settings` 统一过滤敏感键，避免 OAuth 密钥明文回传。
+  - `PUT /api/admin/settings` 仅保留 `site_name`；主题配置迁移至主题设置接口。
+  - `SiteUpdate` 移除 `api_base_url`、`frontend_base_url`、`admin_api_base_url`；站点地址只能通过 `POST /api/admin/site/address`（管理员账号密码二次校验 + 前端探测）写入。
+  - 后台站点设置页移除地址输入框与 robots/sitemap 的硬编码初始链接。
+- **评论管理**：管理端评论列表返回按站点配置解析的 `frontend_url`，图片链接不再硬编码 `127.0.0.1:8000`。
+- **写入校验**：图片编辑、批量移动等写入路径校验目标分类存在，不存在时返回 400/404，不再触发外键 500；上传时若分类不存在则归为未分类。
+- **静态服务**：前台按 `active_theme` 动态调度主题目录（3 秒缓存，切换后立即失效）；新增预设 CSS、动态 `config.js` 与缓存头；媒体不再由 StaticFiles 直出。
+- **Docker**：镜像包含 Alembic 文件，数据目录新增 `theme-presets/`；`data/themes/` 不再加载。
+- **文档**：README 与 CHANGELOG 同步 2.0.0 的迁移、媒体访问、视频、主题、分类密码与可信代理说明。
+
+### Fixed
+
+1. 修复管理端设置接口明文返回 `github_client_secret`、`oauth2_client_secret` 等敏感键的问题（统一敏感键过滤，登录配置仅返回 `*_set` / `*_masked`）。
+2. 修复删除已被图片引用的上传 Token 返回 500 的问题（先置空 `images.uploaded_by`，外键改为 `ON DELETE SET NULL`）。
+3. 修复导出 ZIP 的路径穿越风险（条目名安全化、去重、长度限制与空名回退）。
+4. 修复审核中/已拒绝/回收站图片可通过 `/media`、`/thumbnails` 直连的问题（改为受控媒体路由与签名令牌）。
+5. 修复站点地址可绕过「二次密码验证 + 探测」通过通用站点设置写入的问题（仅保留 `/api/admin/site/address`）。
+6. 修复无条件信任 `X-Forwarded-For` 的问题（仅在可信代理下解析，并从右向左取首个非可信地址；协议头同样受限）。
+7. 修复后台评论管理图片链接硬编码 `127.0.0.1:8000` 的问题（后端返回 `frontend_url`）。
+8. 修复设置不存在的 `folder_id` 触发 500 的问题（图片编辑、批量移动返回 400/404；上传时将不存在的分类归为未分类）。
+
+### Removed
+
+- 移除前台旧 6 套 CSS 主题（明亮 / 暗夜 / 海洋 / 森林 / 日落 / 樱花）与自定义 ZIP 主题包的上传/下载/删除/设为默认能力。
+- 移除 `backend/app/themes.py`、`backend/app/theme_service.py`、`backend/app/routers/themes.py`。
+- 移除 `/api/themes/{id}/css`、`/api/themes/{id}/preview`、`/api/admin/themes*` 等旧主题接口。
+- 移除设置键 `default_theme`、`enabled_themes` 与 `/api/settings` 中的主题字段。
+- 移除多级文件夹与 `include_subfolders` 参数，以及前端/后台的层级分类 UI。
+- 移除 `/media`、`/thumbnails` 的 StaticFiles 挂载。
+- 移除 `SiteUpdate` 中的三个站点地址字段。
+
+### Breaking Changes
+
+- **必须执行数据库迁移**：升级前请备份 `data/`；迁移会扁平化历史多级分类（重名自动追加后缀）、重建 `images` 表并删除旧主题设置键，旧层级不可恢复。
+- **旧主题失效**：旧 6 套前台主题、ZIP 自定义主题与相关设置不再生效；`data/themes/` 文件保留但不会被加载，需改用 `base` / `nav` 与预设。
+- **媒体直链行为变化**：审核中、已拒绝、回收站与加密分类内容不再能通过原始 `/media`、`/thumbnails` URL 直接访问，需要 `access` 或 `folder_token`；未授权返回 404。
+- **API 变更**：移除旧主题接口与 `enabled_themes` / `default_theme` / `include_subfolders`；站点地址写入统一为 `/api/admin/site/address`；公开图片响应不再包含 `original_name`。
+- **分类访问**：加密分类的列表、详情、下载、评论、分享与媒体均需有效 `folder_token`；密码变更后旧令牌立即失效。
+
 ## [1.3.0] - 2026-10-03
 
 ### Added
@@ -86,7 +178,8 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.1.1...v1.2.0

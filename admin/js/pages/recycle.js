@@ -35,11 +35,21 @@
     els.selectAll.checked = allChecked;
   }
 
+  function thumbHtml(image) {
+    if (image.media_type === "video") {
+      return '<div class="media-placeholder">视频</div>';
+    }
+    if (!image.thumb_url) {
+      return '<div class="media-placeholder">无缩略图</div>';
+    }
+    return '<img src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url, image.media_token)) + '" loading="lazy" alt="">';
+  }
+
   function cardHtml(image) {
     return (
       '<div class="image-card" data-id="' + image.id + '">' +
         '<div class="thumb-wrap">' +
-          '<img src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url)) + '" loading="lazy" alt="">' +
+          thumbHtml(image) +
           '<input type="checkbox" class="card-check" data-id="' + image.id + '" aria-label="选择">' +
           '<span class="card-status">' + UI.statusBadge(image.status) + "</span>" +
         "</div>" +

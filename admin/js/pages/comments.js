@@ -5,7 +5,6 @@
   "use strict";
 
   var PAGE_SIZE = 20;
-  var FRONTEND_BASE = "http://127.0.0.1:8000";
   var state = { page: 1, pages: 0, total: 0, items: [], selected: new Set() };
   var els = {};
 
@@ -42,13 +41,14 @@
   function imageCell(image) {
     if (!image || !image.id) return "-";
     var thumb = image.thumb_url
-      ? '<img class="table-thumb" src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url)) + '" loading="lazy" alt="">'
-      : "";
-    var url = FRONTEND_BASE + "/image.html?id=" + image.id;
-    var title = image.title || image.filename || ("#" + image.id);
-    return '<div class="flex items-center gap-sm">' + thumb +
-      '<a href="' + UI.escapeHtml(url) + '" target="_blank" rel="noopener">' +
-      UI.escapeHtml(title) + "</a></div>";
+      ? '<img class="table-thumb" src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url, image.media_token)) + '" loading="lazy" alt="">'
+      : '<div class="media-placeholder media-placeholder-sm">无缩略图</div>';
+    var title = UI.escapeHtml(image.title || image.filename || ("#" + image.id));
+    var url = image.frontend_url || "";
+    var label = url
+      ? '<a href="' + UI.escapeHtml(url) + '" target="_blank" rel="noopener">' + title + "</a>"
+      : "<span>" + title + "</span>";
+    return '<div class="flex items-center gap-sm">' + thumb + label + "</div>";
   }
 
   function rowHtml(comment) {

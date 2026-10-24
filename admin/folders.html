@@ -31,14 +31,29 @@
         <div class="page-head">
           <div>
             <h2>文件夹管理</h2>
-            <div class="subtitle">多级分类文件夹，支持嵌套、重命名与移动</div>
+            <div class="subtitle">扁平分类列表，支持访问密码、图片数与排序</div>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" id="new-folder-btn">新建文件夹</button>
+          <button type="button" class="btn btn-primary btn-sm" id="new-folder-btn">新建分类</button>
         </div>
 
         <div class="card">
           <div class="card-body">
-            <ul class="tree" id="folder-tree"></ul>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>名称</th>
+                    <th>图片数</th>
+                    <th>访问密码</th>
+                    <th>排序</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="folder-tbody">
+                  <tr><td colspan="5"><div class="loading"><span class="spinner"></span>加载中…</div></td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </main>

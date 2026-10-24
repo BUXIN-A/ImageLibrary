@@ -51,9 +51,14 @@ class TagOut(BaseModel):
     image_count: Optional[int] = None
 
 
-# ---------------- 文件夹 ----------------
+# ---------------- 文件夹 / 分类 ----------------
 class FolderOut(BaseModel):
-    """文件夹信息（递归树结构）。"""
+    """一级分类信息。
+
+    为兼容旧前端保留 ``parent_id`` / ``path`` / ``children`` 字段：
+    ``parent_id`` 恒为 None，``path`` 恒为 ``/{id}/``，``children`` 恒为空。
+    响应中不包含分类密码哈希，仅以 ``has_password`` 表示是否加密。
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -61,7 +66,9 @@ class FolderOut(BaseModel):
     name: str
     parent_id: Optional[int] = None
     path: str
+    sort_order: int = 0
     image_count: int = 0
+    has_password: bool = False
     children: list["FolderOut"] = Field(default_factory=list)
 
 
@@ -104,8 +111,87 @@ class ImageOut(BaseModel):
     @computed_field  # type: ignore[misc]
     @property
     def thumb_url(self) -> str:
-        """缩略图访问相对路径。"""
+        """缩略图访问相对路径；视频无缩略图时返回空字符串。"""
+        if not self.thumb_name:
+            return ""
         return f"/thumbnails/{self.thumb_name}"
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def is_video(self) -> bool:
+        """是否为视频媒体（按 MIME 前缀判断）。"""
+        return (self.mime_type or "").startswith("video/")
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def media_type(self) -> str:
+        """媒体类型：``video`` 或 ``image``。"""
+        return "video" if self.is_video else "image"
+
+
+class PublicImageOut(BaseModel):
+    """公开接口图片信息。
+
+    不包含 ``original_name``、``filename``、``share_token``、``is_deleted``、
+    ``reject_reason`` 等内部字段；``filename`` / ``thumb_name`` 仅作为内部字段
+    用于生成访问 URL，不会出现在响应中。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: Optional[str] = None
+    description: Optional[str] = None
+    mime_type: str
+    size: int = 0
+    width: int = 0
+    height: int = 0
+    folder_id: Optional[int] = None
+    folder_name: Optional[str] = None
+    views: int = 0
+    downloads: int = 0
+    tags: list[TagOut] = Field(default_factory=list)
+    exif: Optional[dict] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # 所属分类是否设置了访问密码（由路由填充）
+    folder_locked: bool = False
+
+    # 内部字段：仅用于生成媒体 URL，不对外输出
+    filename: str = Field(default="", exclude=True)
+    thumb_name: str = Field(default="", exclude=True)
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def url(self) -> str:
+        """原图访问相对路径。"""
+        return f"/media/{self.filename}"
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def thumb_url(self) -> str:
+        """缩略图访问相对路径；视频无缩略图时返回空字符串。"""
+        if not self.thumb_name:
+            return ""
+        return f"/thumbnails/{self.thumb_name}"
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def is_video(self) -> bool:
+        """是否为视频媒体（按 MIME 前缀判断）。"""
+        return (self.mime_type or "").startswith("video/")
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def media_type(self) -> str:
+        """媒体类型：``video`` 或 ``image``。"""
+        return "video" if self.is_video else "image"
+
+
+class AdminImageOut(ImageOut):
+    """后台图片信息：在公开字段之外附带短时媒体签名令牌。"""
+
+    media_token: Optional[str] = None
 
 
 # ---------------- 通用分页 ----------------
@@ -220,11 +306,9 @@ class ReviewRejectRequest(BaseModel):
 
 # ---------------- 站点设置 / 统计 ----------------
 class SettingsUpdate(BaseModel):
-    """更新站点设置请求。"""
+    """更新站点设置请求（主题配置已迁移至主题设置接口）。"""
 
     site_name: Optional[str] = None
-    default_theme: Optional[str] = None
-    enabled_themes: Optional[list[str]] = None
 
 
 class StatsOut(BaseModel):
@@ -310,11 +394,9 @@ class SiteUpdate(BaseModel):
     # 通知 / 服务日志开关
     site_check_on_startup: Optional[bool] = None
     visit_log_enabled: Optional[bool] = None
-    # 站点地址：留空表示自动推断（PUBLIC_HOST 或访问主机）
-    api_base_url: Optional[str] = None
-    frontend_base_url: Optional[str] = None
-    # 后台专属 API 地址：留空则与 api_base_url 相同
-    admin_api_base_url: Optional[str] = None
+    # 注意：站点地址（api_base_url / frontend_base_url / admin_api_base_url）
+    # 只能通过 POST /api/admin/site/address（需管理员账号密码二次校验）修改，
+    # 不能经由本模型写入。
 
 
 class SiteAddressUpdate(BaseModel):

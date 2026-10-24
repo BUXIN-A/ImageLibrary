@@ -5,7 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from PIL import Image
 from sqlalchemy.orm import Session
@@ -17,7 +17,7 @@ from backend.app.models import Admin
 from backend.app.notify_service import CATEGORY_SITE, LEVEL_INFO, log
 from backend.app.schemas import SiteAddressUpdate, SiteUpdate
 from backend.app.security import verify_password
-from backend.app.seed import get_bool_setting, get_setting, set_setting
+from backend.app.seed import get_bool_setting, get_int_setting, get_setting, set_setting
 from backend.app.site_config import (
     configured_admin_api_base,
     configured_api_base,
@@ -59,7 +59,7 @@ def favicon_file_path() -> Optional[Path]:
     return None
 
 
-def _site_public(db: Session) -> dict:
+def _site_public(db: Session, request: Optional[Request] = None) -> dict:
     """组装公开站点信息（布尔项转为 bool）。"""
     return {
         "site_name": get_setting(db, "site_name", "我的图库"),
@@ -71,19 +71,24 @@ def _site_public(db: Session) -> dict:
         "sitemap_enabled": get_bool_setting(db, "sitemap_enabled", True),
         "comments_enabled": get_bool_setting(db, "comments_enabled", True),
         "footer_text": get_setting(db, "footer_text", ""),
-        "frontend_base_url": effective_frontend_base(db),
-        "api_base_url": effective_api_base(db),
+        "max_video_size": get_int_setting(
+            db, "upload_max_video_size", settings.MAX_VIDEO_UPLOAD_SIZE
+        ),
+        "allowed_image_extensions": sorted(settings.ALLOWED_IMAGE_EXTENSIONS),
+        "allowed_video_extensions": sorted(settings.ALLOWED_VIDEO_EXTENSIONS),
+        "frontend_base_url": effective_frontend_base(db, request),
+        "api_base_url": effective_api_base(db, request),
         "version": __version__,
     }
 
 
-def _site_admin(db: Session) -> dict:
+def _site_admin(db: Session, request: Optional[Request] = None) -> dict:
     """管理端站点设置（在公开字段基础上追加原始配置值与 robots_extra）。"""
-    data = _site_public(db)
+    data = _site_public(db, request)
     # 实际生效值（只读展示）
     data["resolved_api_base_url"] = data["api_base_url"]
     data["resolved_frontend_base_url"] = data["frontend_base_url"]
-    data["resolved_admin_api_base_url"] = effective_admin_api_base(db)
+    data["resolved_admin_api_base_url"] = effective_admin_api_base(db, request)
     # 后台配置值（可编辑，留空表示自动）
     data["api_base_url"] = configured_api_base(db)
     data["frontend_base_url"] = configured_frontend_base(db)
@@ -96,9 +101,9 @@ def _site_admin(db: Session) -> dict:
 
 
 @router.get("/site")
-def get_site(db: Session = Depends(get_db)) -> dict:
+def get_site(request: Request, db: Session = Depends(get_db)) -> dict:
     """公开站点信息。"""
-    return _site_public(db)
+    return _site_public(db, request)
 
 
 @router.get("/favicon")
@@ -116,13 +121,15 @@ def get_favicon(db: Session = Depends(get_db)):
 
 
 @admin_router.get("")
-def get_site_settings(db: Session = Depends(get_db)) -> dict:
+def get_site_settings(request: Request, db: Session = Depends(get_db)) -> dict:
     """管理端读取完整站点设置。"""
-    return _site_admin(db)
+    return _site_admin(db, request)
 
 
 @admin_router.put("")
-def update_site_settings(payload: SiteUpdate, db: Session = Depends(get_db)) -> dict:
+def update_site_settings(
+    payload: SiteUpdate, request: Request, db: Session = Depends(get_db)
+) -> dict:
     """管理端更新站点设置（仅更新显式提供的字段）。"""
     data = payload.model_dump(exclude_unset=True)
     for key, value in data.items():
@@ -132,11 +139,13 @@ def update_site_settings(payload: SiteUpdate, db: Session = Depends(get_db)) -> 
             set_setting(db, key, "true" if value else "false")
         else:
             set_setting(db, key, value)
-    return _site_admin(db)
+    return _site_admin(db, request)
 
 
 @admin_router.post("/address")
-def set_site_address(payload: SiteAddressUpdate, db: Session = Depends(get_db)) -> dict:
+def set_site_address(
+    payload: SiteAddressUpdate, request: Request, db: Session = Depends(get_db)
+) -> dict:
     """设置或清除站点地址。
 
     为降低「填错地址导致无法进入后台」的风险，本接口在 JWT 之外**再次校验管理员
@@ -173,7 +182,7 @@ def set_site_address(payload: SiteAddressUpdate, db: Session = Depends(get_db)) 
         "站点地址已更新（后台设置）",
         detail=summary,
     )
-    return _site_admin(db)
+    return _site_admin(db, request)
 
 
 @admin_router.post("/favicon")

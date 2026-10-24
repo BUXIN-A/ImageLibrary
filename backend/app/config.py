@@ -3,12 +3,31 @@
 
 使用 pydantic-settings 的 BaseSettings，支持通过环境变量 / .env 覆盖默认值。
 """
+from ipaddress import ip_address, ip_network
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录：backend/app/config.py -> parents[0]=app、[1]=backend、[2]=项目根
 _DEFAULT_BASE_DIR = Path(__file__).resolve().parents[2]
+
+# 上传白名单（小写、含点）
+_IMAGE_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+_VIDEO_EXTENSIONS: set[str] = {".mp4", ".m4v", ".mov", ".webm", ".ogv"}
+_IMAGE_MIME_TYPES: set[str] = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+}
+_VIDEO_MIME_TYPES: set[str] = {
+    "video/mp4",
+    "video/x-m4v",
+    "video/quicktime",
+    "video/webm",
+    "video/ogg",
+}
 
 
 class Settings(BaseSettings):
@@ -37,6 +56,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-please-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    # 后台媒体预览签名 / 加密分类解锁令牌有效期（分钟）
+    MEDIA_TOKEN_EXPIRE_MINUTES: int = 30
+    FOLDER_TOKEN_EXPIRE_MINUTES: int = 120
 
     # ---------- 默认管理员 ----------
     ADMIN_USERNAME: str = "admin"
@@ -46,15 +68,15 @@ class Settings(BaseSettings):
     ADMIN_FORCE_SYNC: bool = False
 
     # ---------- 上传限制 ----------
-    MAX_UPLOAD_SIZE: int = 20 * 1024 * 1024  # 单文件最大字节数
-    ALLOWED_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-    ALLOWED_MIME_TYPES: set[str] = {
-        "image/jpeg",
-        "image/png",
-        "image/gif",
-        "image/webp",
-        "image/bmp",
-    }
+    MAX_UPLOAD_SIZE: int = 20 * 1024 * 1024  # 图片单文件最大字节数
+    MAX_VIDEO_UPLOAD_SIZE: int = 200 * 1024 * 1024  # 视频单文件最大字节数
+    ALLOWED_IMAGE_EXTENSIONS: set[str] = set(_IMAGE_EXTENSIONS)
+    ALLOWED_VIDEO_EXTENSIONS: set[str] = set(_VIDEO_EXTENSIONS)
+    ALLOWED_IMAGE_MIME_TYPES: set[str] = set(_IMAGE_MIME_TYPES)
+    ALLOWED_VIDEO_MIME_TYPES: set[str] = set(_VIDEO_MIME_TYPES)
+    # 旧配置名，保留为图片白名单以兼容既有引用
+    ALLOWED_EXTENSIONS: set[str] = set(_IMAGE_EXTENSIONS)
+    ALLOWED_MIME_TYPES: set[str] = set(_IMAGE_MIME_TYPES)
     THUMBNAIL_SIZE: int = 420  # 缩略图最长边像素
 
     # ---------- 凭证上传限流 ----------
@@ -75,6 +97,11 @@ class Settings(BaseSettings):
     # ---------- 额外允许的跨域来源（逗号分隔，如 https://gallery.example.com） ----------
     CORS_ORIGINS: str = ""
 
+    # ---------- 可信反向代理（逗号分隔 IP/CIDR） ----------
+    # 仅当直连地址属于该列表时才采信 X-Forwarded-For / X-Forwarded-Proto；
+    # 留空表示不信任任何代理，始终使用直连地址。
+    TRUSTED_PROXIES: str = ""
+
     # 是否放行任意来源跨域（默认 true）。
     # 反向代理到 80/443 时 Origin 头不带端口（如 https://gallery.buxin.us.kg），
     # 固定的"主机:端口"白名单无法覆盖；又因本项目鉴权使用 Authorization 头（Bearer）
@@ -93,6 +120,25 @@ class Settings(BaseSettings):
             return f"{self.PUBLIC_SCHEME}://{self.PUBLIC_HOST}:{self.FRONTEND_PORT}"
         return self.FRONTEND_BASE_URL.rstrip("/")
 
+    def resolve_scheme(self, request=None) -> str:
+        """解析请求协议；仅可信代理的 X-Forwarded-Proto 生效。"""
+        if request is None:
+            return self.PUBLIC_SCHEME or "http"
+        scheme = request.url.scheme or "http"
+        direct_host = request.client.host if request.client else ""
+        if self.is_trusted_proxy(direct_host):
+            forwarded = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+            if forwarded in ("http", "https"):
+                scheme = forwarded
+        return scheme
+
+    def _request_hostname(self, request) -> str:
+        """取请求 Host 的主机名（去掉端口）；无请求返回空字符串。"""
+        if request is None:
+            return ""
+        host = request.headers.get("host", "") or ""
+        return host.split(":")[0].strip()
+
     def resolve_api_base(self, request=None) -> str:
         """解析前端应使用的 API 基地址（用于动态生成 config.js）。
 
@@ -101,13 +147,19 @@ class Settings(BaseSettings):
         """
         if self.PUBLIC_HOST:
             return f"{self.PUBLIC_SCHEME}://{self.PUBLIC_HOST}:{self.API_PORT}"
-        if request is not None:
-            host = request.headers.get("host", "") or ""
-            hostname = host.split(":")[0].strip()
-            if hostname:
-                scheme = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
-                return f"{scheme}://{hostname}:{self.API_PORT}"
+        hostname = self._request_hostname(request)
+        if hostname:
+            return f"{self.resolve_scheme(request)}://{hostname}:{self.API_PORT}"
         return self.API_BASE_URL.rstrip("/")
+
+    def resolve_frontend_base(self, request=None) -> str:
+        """解析前台基地址；优先 PUBLIC_HOST，其次请求 Host + 前台端口。"""
+        if self.PUBLIC_HOST:
+            return f"{self.PUBLIC_SCHEME}://{self.PUBLIC_HOST}:{self.FRONTEND_PORT}"
+        hostname = self._request_hostname(request)
+        if hostname:
+            return f"{self.resolve_scheme(request)}://{hostname}:{self.FRONTEND_PORT}"
+        return self.FRONTEND_BASE_URL.rstrip("/")
 
     def cors_origins(self) -> list[str]:
         """返回允许跨域访问的显式来源列表（本地回环 + PUBLIC_HOST + 自定义）。"""
@@ -135,6 +187,27 @@ class Settings(BaseSettings):
         if not self.CORS_ALLOW_ALL_ORIGINS:
             return ""
         return r"^https?://[^/]+$"
+
+    def trusted_proxies(self) -> list:
+        """解析 TRUSTED_PROXIES 为 ip_network 列表；非法条目忽略。"""
+        networks = []
+        for item in self.TRUSTED_PROXIES.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            try:
+                networks.append(ip_network(item, strict=False))
+            except ValueError:
+                continue
+        return networks
+
+    def is_trusted_proxy(self, host: str) -> bool:
+        """判断给定地址是否为可信代理；非法 IP 一律视为不可信。"""
+        try:
+            addr = ip_address((host or "").strip())
+        except ValueError:
+            return False
+        return any(addr.version == net.version and addr in net for net in self.trusted_proxies())
 
     def ensure_dirs(self) -> None:
         """确保数据目录存在。"""

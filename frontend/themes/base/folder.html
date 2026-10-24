@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme-id="base" data-preset="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>分类 - 图片库</title>
+  <link id="preset-style" rel="stylesheet" href="/presets/light.css?v=2.0.0">
+  <script>
+    (function () {
+      var themeId = 'base';
+      var preset = 'light';
+      try {
+        var stored = localStorage.getItem('il_preset_' + themeId);
+        if (stored) preset = stored;
+      } catch (e) { /* 忽略隐私模式等异常 */ }
+      document.documentElement.setAttribute('data-preset', preset);
+      var link = document.getElementById('preset-style');
+      if (link) link.setAttribute('href', '/presets/' + encodeURIComponent(preset) + '.css?v=2.0.0');
+    })();
+  </script>
+  <link rel="stylesheet" href="css/base.css?v=2.0.0">
+  <link rel="stylesheet" href="css/layout.css?v=2.0.0">
+  <link rel="stylesheet" href="css/components.css?v=2.0.0">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container">
+    <section class="page-head">
+      <div>
+        <h1 class="page-title">分类</h1>
+        <p class="page-subtitle">按分类浏览图片与视频</p>
+      </div>
+    </section>
+
+    <div class="folder-layout">
+      <aside class="folder-sidebar">
+        <nav class="folder-nav" aria-label="分类导航">
+          <div class="folder-nav__group">
+            <a class="folder-nav__item" id="nav-all" href="folder.html">
+              <span class="folder-nav__name">全部</span>
+              <span class="folder-nav__meta"><span id="count-all" class="folder-nav__count">0</span></span>
+            </a>
+            <a class="folder-nav__item" id="nav-uncategorized" href="folder.html?view=uncategorized">
+              <span class="folder-nav__name">未分类</span>
+              <span class="folder-nav__meta"><span id="count-uncategorized" class="folder-nav__count">0</span></span>
+            </a>
+          </div>
+          <div class="folder-nav__title">分类列表</div>
+          <div id="folder-list" class="folder-nav__list"></div>
+        </nav>
+      </aside>
+      <section class="folder-content">
+        <div id="folder-title" class="folder-title">全部</div>
+        <div id="folder-hint" class="folder-hint"></div>
+        <div id="result-count" class="result-count"></div>
+        <div id="grid" class="image-grid"></div>
+        <div id="pagination" class="pagination"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script defer src="js/config.js?v=2.0.0"></script>
+  <script defer src="js/api.js?v=2.0.0"></script>
+  <script defer src="js/user.js?v=2.0.0"></script>
+  <script defer src="js/ui.js?v=2.0.0"></script>
+  <script defer src="js/theme.js?v=2.0.0"></script>
+  <script defer src="js/folder-access.js?v=2.0.0"></script>
+  <script defer src="js/layout.js?v=2.0.0"></script>
+  <script defer src="js/prefetch.js?v=2.0.0"></script>
+  <script defer src="js/pages/folder.js?v=2.0.0"></script>
+</body>
+</html>

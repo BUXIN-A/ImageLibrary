@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme-id="base" data-preset="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页 - 图片库</title>
+  <!-- 首屏预设：内联读取本地记忆，改写预设 CSS 链接，避免闪烁 -->
+  <link id="preset-style" rel="stylesheet" href="/presets/light.css?v=2.0.0">
+  <script>
+    (function () {
+      var themeId = 'base';
+      var preset = 'light';
+      try {
+        var stored = localStorage.getItem('il_preset_' + themeId);
+        if (stored) preset = stored;
+      } catch (e) { /* 忽略隐私模式等异常 */ }
+      document.documentElement.setAttribute('data-preset', preset);
+      var link = document.getElementById('preset-style');
+      if (link) link.setAttribute('href', '/presets/' + encodeURIComponent(preset) + '.css?v=2.0.0');
+    })();
+  </script>
+  <!-- 基础样式 -->
+  <link rel="stylesheet" href="css/base.css?v=2.0.0">
+  <link rel="stylesheet" href="css/layout.css?v=2.0.0">
+  <link rel="stylesheet" href="css/components.css?v=2.0.0">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container">
+    <section class="page-head">
+      <div>
+        <h1 class="page-title">图库</h1>
+        <p class="page-subtitle">浏览全部公开图片与视频</p>
+      </div>
+      <div class="toolbar">
+        <label class="field-inline">
+          <span>排序</span>
+          <select id="sort" class="select select--sm">
+            <option value="latest">最新</option>
+            <option value="popular">最热</option>
+            <option value="name">名称</option>
+          </select>
+        </label>
+        <button id="export-btn" class="btn btn--primary" type="button" hidden>批量导出（0）</button>
+      </div>
+    </section>
+
+    <div id="result-count" class="result-count"></div>
+    <div id="grid" class="image-grid"></div>
+    <div id="pagination" class="pagination"></div>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script defer src="js/config.js?v=2.0.0"></script>
+  <script defer src="js/api.js?v=2.0.0"></script>
+  <script defer src="js/user.js?v=2.0.0"></script>
+  <script defer src="js/ui.js?v=2.0.0"></script>
+  <script defer src="js/theme.js?v=2.0.0"></script>
+  <script defer src="js/folder-access.js?v=2.0.0"></script>
+  <script defer src="js/layout.js?v=2.0.0"></script>
+  <script defer src="js/prefetch.js?v=2.0.0"></script>
+  <script defer src="js/pages/index.js?v=2.0.0"></script>
+</body>
+</html>

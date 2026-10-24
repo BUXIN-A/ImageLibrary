@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -60,6 +61,11 @@ class Folder(Base):
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("folders.id"), nullable=True)
     path: Mapped[str] = mapped_column(String(512), default="/")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # 分类访问密码（bcrypt 哈希）与密码版本：密码变更后旧解锁令牌失效
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    auth_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0", default=0
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
@@ -97,6 +103,9 @@ class Image(Base):
     """图片元数据。"""
 
     __tablename__ = "images"
+    __table_args__ = (
+        Index("ix_images_status_is_deleted_created_at", "status", "is_deleted", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     filename: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -107,9 +116,9 @@ class Image(Base):
     size: Mapped[int] = mapped_column(Integer, default=0)
     width: Mapped[int] = mapped_column(Integer, default=0)
     height: Mapped[int] = mapped_column(Integer, default=0)
-    thumb_name: Mapped[str] = mapped_column(String(255), default="")
+    thumb_name: Mapped[str] = mapped_column(String(255), default="", index=True)
     folder_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("folders.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # pending / approved / rejected
     status: Mapped[str] = mapped_column(String(16), default="approved", index=True)
@@ -123,7 +132,7 @@ class Image(Base):
     )
     exif: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     uploaded_by: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("upload_tokens.id"), nullable=True
+        ForeignKey("upload_tokens.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
@@ -197,6 +206,7 @@ class Comment(Base):
     """图片评论。"""
 
     __tablename__ = "comments"
+    __table_args__ = (Index("ix_comments_image_id_status", "image_id", "status"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     image_id: Mapped[int] = mapped_column(

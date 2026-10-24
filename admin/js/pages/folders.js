@@ -1,92 +1,89 @@
 /**
- * 文件夹管理：树形展示，新建（可选父级）、重命名、移动、删除。
+ * 文件夹管理：扁平分类列表，支持新建、重命名、访问密码、排序与删除。
  */
 (function () {
   "use strict";
 
-  var state = { tree: [], flat: [] };
+  var state = { folders: [] };
   var els = {};
 
   function cacheEls() {
-    els.tree = document.getElementById("folder-tree");
+    els.tbody = document.getElementById("folder-tbody");
     els.newBtn = document.getElementById("new-folder-btn");
   }
 
-  function chevron() {
-    return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
-      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  function findFolder(id) {
+    return state.folders.find(function (f) { return String(f.id) === String(id); }) || null;
   }
 
-  function nodeHtml(node) {
-    var hasChildren = node.children && node.children.length > 0;
-    var toggle = '<button type="button" class="tree-toggle' + (hasChildren ? "" : " placeholder") +
-      '" aria-label="展开/折叠">' + (hasChildren ? chevron() : chevron()) + "</button>";
-    var children = hasChildren
-      ? '<ul class="tree-children">' + node.children.map(nodeHtml).join("") + "</ul>"
+  function rowHtml(folder, index) {
+    var locked = folder.has_password
+      ? '<span class="badge badge-primary">已加密</span>'
+      : '<span class="badge badge-muted">公开</span>';
+    var clearBtn = folder.has_password
+      ? '<button type="button" class="btn btn-ghost btn-sm" data-act="clear-password">清除密码</button>'
       : "";
+
     return (
-      '<li>' +
-        '<div class="tree-node" data-id="' + node.id + '">' +
-          toggle +
-          '<span class="tree-label">' + UI.escapeHtml(node.name) +
-            '<span class="folder-count">' + (node.image_count || 0) + " 张</span></span>" +
-          '<span class="tree-actions">' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="add">新建子级</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="rename">重命名</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="move">移动</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm text-danger" data-act="delete">删除</button>' +
-          "</span>" +
-        "</div>" +
-        children +
-      "</li>"
+      '<tr data-id="' + folder.id + '">' +
+        "<td>" + UI.escapeHtml(folder.name) + "</td>" +
+        "<td>" + (folder.image_count || 0) + "</td>" +
+        "<td>" + locked + "</td>" +
+        "<td>" + (folder.sort_order || 0) + "</td>" +
+        '<td><div class="row-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm" data-act="up"' +
+            (index === 0 ? " disabled" : "") + ">上移</button>" +
+          '<button type="button" class="btn btn-outline btn-sm" data-act="down"' +
+            (index === state.folders.length - 1 ? " disabled" : "") + ">下移</button>" +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="rename">重命名</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="password">' +
+            (folder.has_password ? "修改密码" : "设置密码") + "</button>" +
+          clearBtn +
+          '<button type="button" class="btn btn-ghost btn-sm text-danger" data-act="delete">删除</button>' +
+        "</div></td>" +
+      "</tr>"
     );
   }
 
   function render() {
-    if (!state.tree.length) {
-      els.tree.innerHTML = "<li>" + UI.renderEmpty("暂无文件夹，点击右上角新建") + "</li>";
+    if (!els.tbody) return;
+    if (!state.folders.length) {
+      els.tbody.innerHTML = '<tr><td colspan="5">' + UI.renderEmpty("暂无分类，点击右上角新建") + "</td></tr>";
       return;
     }
-    els.tree.innerHTML = state.tree.map(nodeHtml).join("");
+    els.tbody.innerHTML = state.folders.map(rowHtml).join("");
   }
 
   async function load() {
+    if (els.tbody) {
+      els.tbody.innerHTML = '<tr><td colspan="5"><div class="loading"><span class="spinner"></span>加载中…</div></td></tr>';
+    }
     try {
-      var tree = await API.get("/api/folders");
-      state.tree = tree || [];
-      state.flat = UI.flattenFolders(state.tree);
+      var folders = await API.get("/api/folders");
+      state.folders = Array.isArray(folders) ? folders : [];
       render();
     } catch (err) {
-      els.tree.innerHTML = "<li>" + UI.renderEmpty(err.message || "加载失败") + "</li>";
+      els.tbody.innerHTML = '<tr><td colspan="5">' + UI.renderEmpty(err.message || "加载失败") + "</td></tr>";
     }
   }
 
-  function parentOptionsHtml(selectedId, excludeId) {
-    var html = '<option value="">无（顶层）</option>';
-    state.flat.forEach(function (f) {
-      if (excludeId && f.id === excludeId) return;
-      html += '<option value="' + f.id + '"' + (String(f.id) === String(selectedId) ? " selected" : "") +
-        ">" + UI.escapeHtml(f.label) + "</option>";
-    });
-    return html;
-  }
-
-  function openCreateModal(parentId) {
+  function openCreateModal() {
     var body =
-      '<div class="form-field"><label>文件夹名称</label>' +
-        '<input class="input" id="folder-name" type="text" placeholder="请输入名称"></div>' +
-      '<div class="form-field"><label>父文件夹</label><select class="select" id="folder-parent">' +
-        parentOptionsHtml(parentId) + "</select></div>";
-    UI.openModal("新建文件夹", body, async function (modal) {
+      '<div class="form-field"><label for="folder-name">分类名称</label>' +
+        '<input class="input" id="folder-name" type="text" placeholder="请输入分类名称"></div>' +
+      '<div class="form-field"><label for="folder-password">访问密码（可选）</label>' +
+        '<input class="input" id="folder-password" type="password" autocomplete="new-password" placeholder="留空表示公开访问"></div>' +
+      '<div class="form-hint">设置密码后，访客进入该分类需要先输入密码。</div>';
+
+    UI.openModal("新建分类", body, async function (modal) {
       var name = modal.querySelector("#folder-name").value.trim();
-      var parentVal = modal.querySelector("#folder-parent").value;
-      if (!name) { UI.toast("请输入文件夹名称", "warning"); return false; }
+      var password = modal.querySelector("#folder-password").value;
+      if (!name) { UI.toast("请输入分类名称", "warning"); return false; }
+      var payload = { name: name };
+      if (password) payload.password = password;
       try {
-        await API.post("/api/admin/folders", {
-          name: name,
-          parent_id: parentVal ? Number(parentVal) : null
-        });
-        UI.toast("已创建文件夹", "success");
+        await API.post("/api/admin/folders", payload);
+        UI.toast("已创建分类", "success");
         load();
         return true;
       } catch (err) {
@@ -96,14 +93,14 @@
     });
   }
 
-  function openRenameModal(node) {
-    var body = '<div class="form-field"><label>文件夹名称</label>' +
-      '<input class="input" id="folder-name" type="text" value="' + UI.escapeHtml(node.name) + '"></div>';
-    UI.openModal("重命名文件夹", body, async function (modal) {
+  function openRenameModal(folder) {
+    var body = '<div class="form-field"><label for="folder-name">分类名称</label>' +
+      '<input class="input" id="folder-name" type="text" value="' + UI.escapeHtml(folder.name) + '"></div>';
+    UI.openModal("重命名分类", body, async function (modal) {
       var name = modal.querySelector("#folder-name").value.trim();
-      if (!name) { UI.toast("请输入文件夹名称", "warning"); return false; }
+      if (!name) { UI.toast("请输入分类名称", "warning"); return false; }
       try {
-        await API.patch("/api/admin/folders/" + node.id, { name: name });
+        await API.patch("/api/admin/folders/" + folder.id, { name: name });
         UI.toast("已重命名", "success");
         load();
         return true;
@@ -114,69 +111,106 @@
     });
   }
 
-  function openMoveModal(node) {
-    var body = '<div class="form-field"><label>移动到</label><select class="select" id="folder-parent">' +
-      parentOptionsHtml(node.parent_id, node.id) + "</select>" +
-      '<div class="form-hint">不能移动到自身或其子文件夹下</div></div>';
-    UI.openModal("移动文件夹", body, async function (modal) {
-      var parentVal = modal.querySelector("#folder-parent").value;
+  function openPasswordModal(folder) {
+    var hint = folder.has_password
+      ? "该分类已设置密码，填写新密码将覆盖原密码。"
+      : "设置密码后，访客进入该分类需要先输入密码。";
+    var body =
+      '<div class="form-field"><label for="folder-password">新访问密码</label>' +
+        '<input class="input" id="folder-password" type="password" autocomplete="new-password" placeholder="请输入新密码"></div>' +
+      '<div class="form-hint">' + UI.escapeHtml(hint) + "</div>";
+
+    UI.openModal("设置访问密码", body, async function (modal) {
+      var password = modal.querySelector("#folder-password").value;
+      if (!password) { UI.toast("请输入访问密码", "warning"); return false; }
       try {
-        await API.patch("/api/admin/folders/" + node.id, {
-          parent_id: parentVal ? Number(parentVal) : null
-        });
-        UI.toast("已移动", "success");
+        await API.patch("/api/admin/folders/" + folder.id, { password: password });
+        UI.toast("密码已更新", "success");
         load();
         return true;
       } catch (err) {
-        UI.toast(err.message || "移动失败", "error");
+        UI.toast(err.message || "设置失败", "error");
         return false;
       }
     });
   }
 
-  async function deleteFolder(node) {
+  async function clearPassword(folder) {
     var yes = await UI.confirmDialog(
-      "确定删除文件夹「" + node.name + "」吗？其下图片将归入父级（顶层则归为未分类），子文件夹将上移。"
+      "确定清除分类「" + folder.name + "」的访问密码吗？清除后该分类将公开访问。",
+      "清除密码"
     );
     if (!yes) return;
     try {
-      await API.del("/api/admin/folders/" + node.id);
-      UI.toast("已删除文件夹", "success");
+      await API.patch("/api/admin/folders/" + folder.id, { password: "" });
+      UI.toast("密码已清除", "success");
+      load();
+    } catch (err) {
+      UI.toast(err.message || "清除失败", "error");
+    }
+  }
+
+  async function deleteFolder(folder) {
+    var yes = await UI.confirmDialog(
+      "确定删除分类「" + folder.name + "」吗？该分类下的图片将变为未分类。",
+      "删除"
+    );
+    if (!yes) return;
+    try {
+      await API.del("/api/admin/folders/" + folder.id);
+      UI.toast("已删除分类", "success");
       load();
     } catch (err) {
       UI.toast(err.message || "删除失败", "error");
     }
   }
 
-  function findNode(id) {
-    var found = null;
-    (function walk(nodes) {
-      (nodes || []).forEach(function (n) {
-        if (String(n.id) === String(id)) found = n;
-        else if (n.children) walk(n.children);
-      });
-    })(state.tree);
-    return found;
+  async function moveFolder(folder, direction) {
+    var index = state.folders.indexOf(folder);
+    var neighbor = state.folders[index + direction];
+    if (!neighbor) return;
+
+    var currentOrder = Number(folder.sort_order) || 0;
+    var neighborOrder = Number(neighbor.sort_order) || 0;
+    var targetOrder;
+    var neighborTarget = currentOrder;
+
+    if (currentOrder === neighborOrder) {
+      targetOrder = neighborOrder + (direction < 0 ? -1 : 1);
+      neighborTarget = neighborOrder;
+    } else {
+      targetOrder = neighborOrder;
+    }
+
+    try {
+      await API.patch("/api/admin/folders/" + folder.id, { sort_order: targetOrder });
+      if (neighborTarget !== targetOrder) {
+        await API.patch("/api/admin/folders/" + neighbor.id, { sort_order: neighborTarget });
+      }
+      UI.toast("排序已更新", "success");
+      load();
+    } catch (err) {
+      UI.toast(err.message || "排序失败", "error");
+    }
   }
 
-  function bindTreeEvents() {
-    if (!els.tree) return;
-    els.tree.addEventListener("click", function (e) {
-      var toggle = e.target.closest(".tree-toggle");
-      if (toggle && !toggle.classList.contains("placeholder")) {
-        toggle.closest(".tree-node").classList.toggle("collapsed");
-        return;
-      }
+  function bindEvents() {
+    if (els.newBtn) els.newBtn.addEventListener("click", openCreateModal);
+    if (!els.tbody) return;
+
+    els.tbody.addEventListener("click", function (e) {
       var btn = e.target.closest("button[data-act]");
-      if (!btn) return;
-      var nodeEl = btn.closest(".tree-node");
-      var node = findNode(nodeEl.dataset.id);
-      if (!node) return;
+      if (!btn || btn.disabled) return;
+      var row = btn.closest("tr");
+      var folder = row && findFolder(row.dataset.id);
+      if (!folder) return;
       var act = btn.dataset.act;
-      if (act === "add") openCreateModal(node.id);
-      else if (act === "rename") openRenameModal(node);
-      else if (act === "move") openMoveModal(node);
-      else if (act === "delete") deleteFolder(node);
+      if (act === "up") moveFolder(folder, -1);
+      else if (act === "down") moveFolder(folder, 1);
+      else if (act === "rename") openRenameModal(folder);
+      else if (act === "password") openPasswordModal(folder);
+      else if (act === "clear-password") clearPassword(folder);
+      else if (act === "delete") deleteFolder(folder);
     });
   }
 
@@ -184,8 +218,7 @@
     active: "folders",
     onReady: function () {
       cacheEls();
-      bindTreeEvents();
-      els.newBtn.addEventListener("click", function () { openCreateModal(null); });
+      bindEvents();
       load();
     }
   }).catch(function (err) {

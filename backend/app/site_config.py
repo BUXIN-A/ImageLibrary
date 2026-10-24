@@ -33,12 +33,12 @@ def effective_api_base(db: Session, request=None) -> str:
     return settings.resolve_api_base(request)
 
 
-def effective_frontend_base(db: Session) -> str:
+def effective_frontend_base(db: Session, request=None) -> str:
     """实际生效的前台基地址（用于分享链接、sitemap、OAuth 回跳）。"""
     value = configured_frontend_base(db)
     if value:
         return value.rstrip("/")
-    return settings.frontend_base_url()
+    return settings.resolve_frontend_base(request)
 
 
 def effective_admin_api_base(db: Session, request=None) -> str:

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>主题管理</title>
+  <title>主题设置</title>
   <link rel="stylesheet" href="themes/light.css">
   <link rel="stylesheet" href="themes/dark.css">
   <link rel="stylesheet" href="themes/ocean.css">
@@ -30,17 +30,95 @@
       <main class="container">
         <div class="page-head">
           <div>
-            <h2>主题管理</h2>
+            <h2>主题设置</h2>
             <div class="subtitle" id="themes-summary">加载中…</div>
           </div>
-          <div class="flex items-center gap-sm">
-            <input type="file" id="theme-file" accept=".zip" class="hidden">
-            <button type="button" class="btn btn-outline btn-sm" id="upload-theme">上传主题</button>
-            <button type="button" class="btn btn-outline btn-sm" id="refresh-btn">刷新</button>
-          </div>
+          <button type="button" class="btn btn-outline btn-sm" id="refresh-btn">刷新</button>
         </div>
 
-        <div id="themes-list"></div>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab-btn active" data-tab="themes" role="tab">主题</button>
+          <button type="button" class="tab-btn" data-tab="config" role="tab">主题配置</button>
+        </div>
+
+        <section class="tab-panel" id="tab-themes">
+          <div id="themes-list"></div>
+        </section>
+
+        <section class="tab-panel hidden" id="tab-config">
+          <div class="card">
+            <div class="card-header"><span>选择要配置的主题</span></div>
+            <div class="card-body">
+              <div class="tabs tabs-sm" id="config-theme-tabs">
+                <button type="button" class="tab-btn active" data-theme-id="base">基础</button>
+                <button type="button" class="tab-btn" data-theme-id="nav">导航</button>
+              </div>
+              <div class="form-hint">预设与统计配置按主题独立保存，每个主题至少保留一个预设。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span>配色预设</span></div>
+            <div class="card-body">
+              <div id="preset-list"></div>
+
+              <form id="preset-form" class="mt-md">
+                <div class="form-grid">
+                  <div class="form-field">
+                    <label for="preset-file">预设 CSS 文件</label>
+                    <input class="input" id="preset-file" type="file" accept=".css,text/css" required>
+                  </div>
+                  <div class="form-field">
+                    <label for="preset-name">预设名称（可选）</label>
+                    <input class="input" id="preset-name" type="text" placeholder="留空则使用文件名">
+                  </div>
+                  <div class="form-field">
+                    <label for="preset-id">预设 ID（可选）</label>
+                    <input class="input" id="preset-id" type="text" placeholder="2-32 位小写字母、数字、下划线或连字符">
+                  </div>
+                </div>
+                <div class="form-hint">文件需为 UTF-8 编码，且必须包含 <code>[data-preset="&lt;id&gt;"]</code> 选择器，大小不超过 256KB。</div>
+                <div class="flex items-center justify-between mt-md">
+                  <span class="selected-count" id="preset-hint">选择主题后可上传预设</span>
+                  <button type="submit" class="btn btn-primary btn-sm" id="preset-upload-btn">上传预设</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="card hidden" id="nav-stats-card">
+            <div class="card-header"><span>导航主题首页统计</span></div>
+            <div class="card-body">
+              <div class="form-hint">关闭后对应统计项不会显示在导航主题首页。</div>
+              <div class="form-grid mt-md">
+                <label class="checkbox">
+                  <input type="checkbox" data-stat="folder_images">
+                  <span>分类图片数</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" data-stat="total_images">
+                  <span>总图片数</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" data-stat="total_views">
+                  <span>总浏览数</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" data-stat="total_comments">
+                  <span>总评论数</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" data-stat="total_downloads">
+                  <span>总下载数</span>
+                </label>
+              </div>
+              <div class="flex items-center justify-between mt-md">
+                <span class="form-hint">统计开关保存后立即生效。</span>
+                <button type="button" class="btn btn-primary btn-sm" id="nav-stats-save">保存统计开关</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   </div>

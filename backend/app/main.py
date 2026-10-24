@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""FastAPI 应用装配：CORS、静态媒体挂载、路由注册与初始化。"""
+"""FastAPI 应用装配：CORS、受控媒体路由、路由注册与初始化。"""
 import threading
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from backend.app.config import settings
 from backend.app.database import SessionLocal
@@ -29,6 +29,7 @@ from backend.app.routers import (
     folders,
     images,
     login_settings,
+    media,
     notifications,
     oauth,
     review,
@@ -36,15 +37,16 @@ from backend.app.routers import (
     site,
     stats,
     tags,
-    themes,
+    theme_settings,
     tokens,
     user,
 )
 from backend.app.seed import init_seed
 from backend.app.site_monitor import run_startup_check
+from backend.app.theme_settings_service import ensure_theme_state
 from backend.app.version import __version__
 
-# 确保数据目录存在（StaticFiles 挂载时目录必须存在）
+# 确保数据目录存在
 settings.ensure_dirs()
 
 app = FastAPI(title="ImageLibrary API", version=__version__)
@@ -58,6 +60,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 压缩 JSON/文本响应（大于 500 字节时），降低传输体积
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 def _startup_site_check() -> None:
@@ -75,6 +80,7 @@ def _on_startup() -> None:
     try:
         db = SessionLocal()
         try:
+            ensure_theme_state(db)
             log(db, LEVEL_INFO, CATEGORY_STARTUP, f"服务启动（v{__version__}）")
         finally:
             db.close()
@@ -105,13 +111,8 @@ def root_redirect() -> RedirectResponse:
     return RedirectResponse(url="/docs", status_code=302)
 
 
-# 静态资源：原图与缩略图
-app.mount("/media", StaticFiles(directory=str(settings.UPLOAD_DIR)), name="media")
-app.mount(
-    "/thumbnails",
-    StaticFiles(directory=str(settings.THUMBNAIL_DIR)),
-    name="thumbnails",
-)
+# 受控媒体：原图与缩略图（路由内部按状态/分类密码/后台签名授权）
+app.include_router(media.router)
 
 # 认证与公开路由
 app.include_router(auth.router)
@@ -122,7 +123,7 @@ app.include_router(comments.router)
 app.include_router(folders.router)
 app.include_router(tags.router)
 app.include_router(site.router)
-app.include_router(themes.router)
+app.include_router(theme_settings.router)
 app.include_router(settings_router.router)
 app.include_router(credential.router)
 
@@ -133,7 +134,7 @@ app.include_router(tokens.router)
 app.include_router(review.router)
 app.include_router(settings_router.admin_router)
 app.include_router(site.admin_router)
-app.include_router(themes.admin_router)
+app.include_router(theme_settings.admin_router)
 app.include_router(login_settings.router)
 app.include_router(comments.admin_router)
 app.include_router(admin_users.router)

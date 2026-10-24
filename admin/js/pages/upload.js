@@ -60,11 +60,19 @@
     els.progressText.textContent = text;
   }
 
+  var VIDEO_EXT_RE = /\.(mp4|m4v|mov|webm|ogv)$/i;
+
+  /** 判断文件是否为允许上传的图片或视频。 */
+  function isAllowedFile(file) {
+    if (/^image\//.test(file.type) || /^video\//.test(file.type)) return true;
+    return VIDEO_EXT_RE.test(file.name || "");
+  }
+
   /** 合并新选择的文件（按 name+size 去重）。 */
   function addFiles(fileList) {
     Array.prototype.forEach.call(fileList, function (file) {
-      if (!/^image\//.test(file.type)) {
-        UI.toast("已忽略非图片文件：" + file.name, "warning");
+      if (!isAllowedFile(file)) {
+        UI.toast("已忽略非图片/视频文件：" + file.name, "warning");
         return;
       }
       var exists = state.files.some(function (f) {
@@ -95,16 +103,28 @@
     els.uploadBtn.disabled = count === 0;
   }
 
+  function resultThumbHtml(result) {
+    if (!result.ok || !result.image) {
+      return '<div class="empty-state" style="padding:26px 8px;"><p class="text-danger">上传失败</p></div>';
+    }
+    var image = result.image;
+    if (image.media_type === "video") {
+      return '<div class="media-placeholder">视频</div>';
+    }
+    if (!image.thumb_url) {
+      return '<div class="media-placeholder">无缩略图</div>';
+    }
+    return '<img src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url, image.media_token)) + '" loading="lazy" alt="">';
+  }
+
   function renderResults(data) {
     els.resultCard.classList.remove("hidden");
-    els.resultSummary.textContent = "成功 " + (data.success || 0) + " 张，失败 " + (data.failed || 0) + " 张";
+    els.resultSummary.textContent = "成功 " + (data.success || 0) + " 个，失败 " + (data.failed || 0) + " 个";
     els.resultList.innerHTML = "";
     (data.results || []).forEach(function (result) {
       var item = document.createElement("div");
       item.className = "result-item " + (result.ok ? "ok" : "fail");
-      var thumb = result.ok && result.image
-        ? '<img src="' + UI.escapeHtml(UI.mediaUrl(result.image.thumb_url)) + '" loading="lazy" alt="">'
-        : '<div class="empty-state" style="padding:26px 8px;"><p class="text-danger">上传失败</p></div>';
+      var thumb = resultThumbHtml(result);
       var meta = result.ok
         ? "<div>" + UI.escapeHtml(result.image && result.image.title ? result.image.title : result.filename) + "</div>"
         : '<div class="text-danger">' + UI.escapeHtml(result.error || "处理失败") + "</div>";
@@ -136,7 +156,7 @@
       var data = await API.postFormWithProgress("/api/admin/images", fd, updateProgress);
       var success = (data && data.success) || 0;
       var failed = (data && data.failed) || 0;
-      finishProgress("上传完成：成功 " + success + " 张，失败 " + failed + " 张", false);
+      finishProgress("上传完成：成功 " + success + " 个，失败 " + failed + " 个", false);
       renderResults(data || { results: [], success: 0, failed: 0 });
       UI.toast("上传完成：成功 " + success + "，失败 " + failed,
         failed > 0 ? "warning" : "success");

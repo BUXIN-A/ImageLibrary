@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
-from backend.app.models import UploadToken
+from backend.app.models import Image, UploadToken
 from backend.app.schemas import TokenCreate, TokenOut, TokenUpdate
 from backend.app.security import generate_token
 
@@ -73,10 +73,14 @@ def update_token(
 
 @router.delete("/{token_id}")
 def delete_token(token_id: int, db: Session = Depends(get_db)) -> dict:
-    """删除上传 Token。"""
+    """删除上传 Token：先把引用该 Token 的图片置为未关联（uploaded_by=NULL）。"""
     token = db.get(UploadToken, token_id)
     if token is None:
         raise HTTPException(status_code=404, detail="Token 不存在")
+    # 数据库外键已为 ON DELETE SET NULL，这里显式处理以兼容未迁移的旧库
+    db.query(Image).filter(Image.uploaded_by == token.id).update(
+        {Image.uploaded_by: None}, synchronize_session=False
+    )
     db.delete(token)
     db.commit()
     return {"ok": True}

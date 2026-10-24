@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """FastAPI 依赖：管理员认证、上传 Token 校验、客户端 IP 提取。"""
 from datetime import datetime
+from ipaddress import ip_address
 from typing import Optional
 
 import jwt
@@ -8,6 +9,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.models import Admin, UploadToken, User
 from backend.app.security import decode_token
@@ -104,10 +106,27 @@ def validate_upload_token(
 
 
 def client_ip(request: Request) -> str:
-    """获取客户端 IP，优先取 X-Forwarded-For 首段。"""
+    """获取客户端 IP。
+
+    仅当直连地址属于 ``TRUSTED_PROXIES`` 时才采信 ``X-Forwarded-For``：
+    从右向左跳过可信代理，返回第一个合法的非可信地址；否则直接返回直连地址。
+    """
+    direct = request.client.host if request.client and request.client.host else ""
+    if not settings.is_trusted_proxy(direct):
+        return direct
+
     forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
-    return request.client.host if request.client else ""
+    if not forwarded:
+        return direct
+
+    for item in reversed([part.strip() for part in forwarded.split(",")]):
+        if not item:
+            continue
+        try:
+            ip_address(item)
+        except ValueError:
+            continue
+        if settings.is_trusted_proxy(item):
+            continue
+        return item
+    return direct

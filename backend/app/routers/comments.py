@@ -3,11 +3,12 @@
 import math
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
+from sqlalchemy.orm import Session, joinedload
 
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin, get_current_user
+from backend.app.media_service import create_admin_media_token, parse_folder_token
 from backend.app.models import Comment, Image, User
 from backend.app.schemas import (
     CommentBatchRequest,
@@ -15,6 +16,7 @@ from backend.app.schemas import (
     CommentStatusUpdate,
 )
 from backend.app.seed import get_bool_setting
+from backend.app.site_config import effective_frontend_base
 
 router = APIRouter(prefix="/api/images", tags=["comments"])
 admin_router = APIRouter(
@@ -24,6 +26,7 @@ admin_router = APIRouter(
 )
 
 _MAX_CONTENT_LEN = 1000
+_LOCKED_DETAIL = "该分类已加密，请先解锁"
 
 
 def _public_image(db: Session, image_id: int) -> Optional[Image]:
@@ -37,6 +40,16 @@ def _public_image(db: Session, image_id: int) -> Optional[Image]:
         )
         .first()
     )
+
+
+def _ensure_folder_access(image: Image, db: Session, folder_token: Optional[str]) -> None:
+    """加密分类图片需提供该分类的有效解锁令牌，否则返回 403。"""
+    folder = image.folder
+    if folder is None or not folder.password_hash:
+        return
+    unlocked = parse_folder_token(folder_token, db)
+    if unlocked is None or unlocked.id != folder.id:
+        raise HTTPException(status_code=403, detail=_LOCKED_DETAIL)
 
 
 def _user_brief(user: Optional[User]) -> dict:
@@ -61,9 +74,14 @@ def _serialize(comment: Comment) -> dict:
     }
 
 
-def _serialize_admin(comment: Comment) -> dict:
-    """管理端评论序列化（附带所属图片信息）。"""
+def _serialize_admin(comment: Comment, frontend_base: str) -> dict:
+    """管理端评论序列化（附带所属图片信息与完整前台详情链接）。"""
     image = comment.image
+    frontend_url = (
+        f"{frontend_base}/image.html?id={image.id}"
+        if image is not None and frontend_base
+        else None
+    )
     return {
         "id": comment.id,
         "content": comment.content,
@@ -75,6 +93,8 @@ def _serialize_admin(comment: Comment) -> dict:
             "title": image.title if image else None,
             "filename": image.filename if image else "",
             "thumb_url": f"/thumbnails/{image.thumb_name}" if image else "",
+            "frontend_url": frontend_url,
+            "media_token": create_admin_media_token(image.id) if image else None,
         },
     }
 
@@ -84,18 +104,23 @@ def list_comments(
     image_id: int,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
     db: Session = Depends(get_db),
 ) -> dict:
-    """公开评论列表：仅返回可见评论，按时间倒序。"""
-    if _public_image(db, image_id) is None:
+    """公开评论列表：仅返回可见评论，按时间倒序；加密分类需先解锁。"""
+    image = _public_image(db, image_id)
+    if image is None:
         raise HTTPException(status_code=404, detail="图片不存在")
+    _ensure_folder_access(image, db, folder_token or x_folder_token)
 
     query = db.query(Comment).filter(
         Comment.image_id == image_id, Comment.status == "visible"
     )
     total = query.count()
     items = (
-        query.order_by(Comment.created_at.desc(), Comment.id.desc())
+        query.options(joinedload(Comment.user))
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -114,14 +139,18 @@ def list_comments(
 def create_comment(
     image_id: int,
     payload: CommentCreateRequest = Body(...),
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """发表评论：评论功能需开启，内容去空格后非空且不超过 1000 字。"""
     if not get_bool_setting(db, "comments_enabled", True):
         raise HTTPException(status_code=403, detail="评论功能已关闭")
-    if _public_image(db, image_id) is None:
+    image = _public_image(db, image_id)
+    if image is None:
         raise HTTPException(status_code=404, detail="图片不存在")
+    _ensure_folder_access(image, db, folder_token or x_folder_token)
 
     content = (payload.content or "").strip()
     if not content:
@@ -140,6 +169,7 @@ def create_comment(
 
 @admin_router.get("")
 def list_all_comments(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     q: Optional[str] = Query(None),
@@ -158,14 +188,19 @@ def list_all_comments(
 
     total = query.count()
     items = (
-        query.order_by(Comment.created_at.desc(), Comment.id.desc())
+        query.options(
+            joinedload(Comment.user),
+            joinedload(Comment.image),
+        )
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
     pages = math.ceil(total / page_size) if page_size else 0
+    frontend_base = effective_frontend_base(db, request)
     return {
-        "items": [_serialize_admin(item) for item in items],
+        "items": [_serialize_admin(item, frontend_base) for item in items],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -175,7 +210,10 @@ def list_all_comments(
 
 @admin_router.patch("/{comment_id}")
 def update_comment_status(
-    comment_id: int, payload: CommentStatusUpdate = Body(...), db: Session = Depends(get_db)
+    comment_id: int,
+    payload: CommentStatusUpdate = Body(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
 ) -> dict:
     """更新评论状态（visible / hidden）。"""
     comment = db.get(Comment, comment_id)
@@ -187,7 +225,7 @@ def update_comment_status(
     comment.status = payload.status
     db.commit()
     db.refresh(comment)
-    return _serialize_admin(comment)
+    return _serialize_admin(comment, effective_frontend_base(db, request))
 
 
 @admin_router.delete("/{comment_id}")

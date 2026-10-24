@@ -1,207 +1,352 @@
 /**
- * 主题管理：列表展示、上传、下载、删除、设为默认与启用/禁用。
+ * 主题设置：双标签管理「主题」与「主题配置」。
+ * - 主题标签：展示基础/导航两套主题，支持启用。
+ * - 主题配置标签：按主题管理预设（上传/删除/设为默认）与导航主题统计开关。
  */
 (function () {
   "use strict";
 
-  var API_BASE = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
-  var state = { themes: [], enabled: [], defaultTheme: "" };
+  var STAT_KEYS = [
+    "folder_images",
+    "total_images",
+    "total_views",
+    "total_comments",
+    "total_downloads"
+  ];
+
+  var state = {
+    data: null,
+    tab: "themes",
+    configTheme: "base"
+  };
   var els = {};
 
   function cacheEls() {
-    els.list = document.getElementById("themes-list");
     els.summary = document.getElementById("themes-summary");
-    els.file = document.getElementById("theme-file");
-    els.uploadBtn = document.getElementById("upload-theme");
+    els.tabBtns = document.querySelectorAll(".tabs[role='tablist'] .tab-btn");
+    els.tabThemes = document.getElementById("tab-themes");
+    els.tabConfig = document.getElementById("tab-config");
+    els.themesList = document.getElementById("themes-list");
+    els.configThemeTabs = document.getElementById("config-theme-tabs");
+    els.presetList = document.getElementById("preset-list");
+    els.presetForm = document.getElementById("preset-form");
+    els.presetFile = document.getElementById("preset-file");
+    els.presetName = document.getElementById("preset-name");
+    els.presetId = document.getElementById("preset-id");
+    els.presetHint = document.getElementById("preset-hint");
+    els.presetUploadBtn = document.getElementById("preset-upload-btn");
+    els.navStatsCard = document.getElementById("nav-stats-card");
+    els.navStatsSave = document.getElementById("nav-stats-save");
     els.refreshBtn = document.getElementById("refresh-btn");
   }
 
-  function parseEnabled(raw) {
-    if (!raw) return [];
-    try {
-      var parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.map(String) : [];
-    } catch (err) {
-      return [];
-    }
+  function themePath(themeId) {
+    return "/api/admin/theme-settings/" + encodeURIComponent(themeId);
   }
 
-  function isEnabled(id) {
-    return state.enabled.indexOf(id) !== -1;
+  function findTheme(id) {
+    var themes = (state.data && state.data.themes) || [];
+    return themes.find(function (item) { return String(item.id) === String(id); }) || null;
   }
 
-  function cardHtml(theme) {
-    var badges = "";
-    badges += '<span class="badge ' + (theme.source === "custom" ? "badge-primary" : "badge-muted") + '">' +
-      (theme.source === "custom" ? "自定义" : "内置") + "</span>";
-    if (theme.id === state.defaultTheme) badges += '<span class="badge badge-approved">默认</span>';
-    badges += isEnabled(theme.id)
-      ? '<span class="badge badge-approved">已启用</span>'
-      : '<span class="badge badge-hidden">已禁用</span>';
+  function themeName(id) {
+    var theme = findTheme(id);
+    if (theme && theme.name) return theme.name;
+    return id === "nav" ? "导航" : "基础";
+  }
 
-    var preview = theme.has_preview
-      ? '<img src="' + API_BASE + "/api/themes/" + encodeURIComponent(theme.id) + '/preview" loading="lazy" alt="">'
-      : '<div class="empty-state" style="padding:var(--space-6) 0;">无预览图</div>';
+  function themesWithNames() {
+    var list = (state.data && state.data.themes) || [];
+    if (list.length) return list;
+    return [
+      { id: "base", name: "基础" },
+      { id: "nav", name: "导航" }
+    ];
+  }
 
-    var meta = [];
-    if (theme.author) meta.push("作者：" + UI.escapeHtml(theme.author));
-    if (theme.version) meta.push("版本：" + UI.escapeHtml(theme.version));
+  function renderSummary() {
+    if (!els.summary) return;
+    var active = state.data && state.data.active_theme;
+    els.summary.textContent = "当前启用主题：" + themeName(active || "base") +
+      " · 共 " + themesWithNames().length + " 套主题";
+  }
+
+  function themeCardHtml(theme) {
+    var preview = theme.preview_url
+      ? '<img src="' + UI.escapeHtml(UI.mediaUrl(theme.preview_url)) + '" loading="lazy" alt="">'
+      : '<div class="media-placeholder">暂无预览图</div>';
+    var badges = theme.active
+      ? '<span class="badge badge-approved">当前启用</span>'
+      : '<span class="badge badge-muted">未启用</span>';
+    var action = theme.active
+      ? '<button type="button" class="btn btn-outline btn-sm" disabled>已启用</button>'
+      : '<button type="button" class="btn btn-primary btn-sm" data-act="activate">启用</button>';
 
     return (
       '<div class="image-card" data-id="' + UI.escapeHtml(theme.id) + '">' +
         '<div class="thumb-wrap">' + preview + '<span class="card-status">' + badges + "</span></div>" +
         '<div class="card-info">' +
           '<div class="card-title" title="' + UI.escapeHtml(theme.name) + '">' + UI.escapeHtml(theme.name) + "</div>" +
-          '<div class="card-sub"><span>ID：' + UI.escapeHtml(theme.id) + "</span></div>" +
-          (meta.length ? '<div class="card-sub"><span>' + meta.join("　") + "</span></div>" : "") +
+          '<div class="card-sub"><span>ID：' + UI.escapeHtml(theme.id) + "</span>" +
+            (theme.version ? "<span>版本：" + UI.escapeHtml(theme.version) + "</span>" : "") +
+          "</div>" +
           (theme.description ? '<div class="card-sub"><span>' + UI.escapeHtml(theme.description) + "</span></div>" : "") +
         "</div>" +
-        '<div class="card-actions">' +
-          '<button type="button" class="btn btn-outline btn-sm" data-act="download">下载</button>' +
-          (theme.id === state.defaultTheme ? "" :
-            '<button type="button" class="btn btn-outline btn-sm" data-act="default">设为默认</button>') +
-          '<button type="button" class="btn btn-outline btn-sm" data-act="toggle">' +
-            (isEnabled(theme.id) ? "禁用" : "启用") + "</button>" +
-          (theme.source === "custom"
-            ? '<button type="button" class="btn btn-ghost btn-sm text-danger" data-act="delete">删除</button>'
-            : "") +
-        "</div>" +
+        '<div class="card-actions">' + action + "</div>" +
       "</div>"
     );
   }
 
-  function render() {
-    if (!state.themes.length) {
-      els.list.innerHTML = UI.renderEmpty("暂无主题");
+  function renderThemes() {
+    if (!els.themesList) return;
+    var themes = themesWithNames();
+    if (!themes.length) {
+      els.themesList.innerHTML = UI.renderEmpty("暂无主题");
       return;
     }
-    els.list.innerHTML = '<div class="image-grid">' + state.themes.map(cardHtml).join("") + "</div>";
+    els.themesList.innerHTML = '<div class="image-grid">' + themes.map(themeCardHtml).join("") + "</div>";
   }
 
-  function renderSummary() {
-    var defaultName = state.defaultTheme;
-    var found = state.themes.find(function (t) { return t.id === state.defaultTheme; });
-    if (found && found.name) defaultName = found.name;
-    els.summary.textContent = "当前默认主题：" + (defaultName || "未设置") +
-      " · 已启用 " + state.enabled.length + " / " + state.themes.length + " 个";
+  function renderConfigThemeTabs() {
+    if (!els.configThemeTabs) return;
+    var btns = els.configThemeTabs.querySelectorAll(".tab-btn");
+    Array.prototype.forEach.call(btns, function (btn) {
+      var id = btn.dataset.themeId;
+      btn.textContent = themeName(id);
+      btn.classList.toggle("active", id === state.configTheme);
+    });
+  }
+
+  function presetRowHtml(preset) {
+    var badges = "";
+    if (preset.default) badges += '<span class="badge badge-approved">默认</span>';
+    if (preset.builtin) badges += '<span class="badge badge-muted">内置</span>';
+
+    return (
+      "<tr data-preset-id=\"" + UI.escapeHtml(preset.id) + "\">" +
+        "<td>" + UI.escapeHtml(preset.name || preset.id) + "</td>" +
+        "<td><code>" + UI.escapeHtml(preset.id) + "</code></td>" +
+        "<td>" + (badges || '<span class="badge badge-muted">自定义</span>') + "</td>" +
+        '<td><div class="row-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm" data-act="default"' +
+            (preset.default ? " disabled" : "") + ">设为默认</button>" +
+          '<button type="button" class="btn btn-ghost btn-sm text-danger" data-act="delete">删除</button>' +
+        "</div></td>" +
+      "</tr>"
+    );
+  }
+
+  function renderPresets() {
+    if (!els.presetList) return;
+    var presets = (state.data && state.data.presets && state.data.presets[state.configTheme]) || [];
+    if (!presets.length) {
+      els.presetList.innerHTML = UI.renderEmpty("暂无预设");
+    } else {
+      els.presetList.innerHTML =
+        '<div class="table-wrap"><table class="table">' +
+          "<thead><tr><th>名称</th><th>ID</th><th>标识</th><th>操作</th></tr></thead>" +
+          "<tbody>" + presets.map(presetRowHtml).join("") + "</tbody>" +
+        "</table></div>";
+    }
+    if (els.presetHint) {
+      els.presetHint.textContent = "正在配置：" + themeName(state.configTheme);
+    }
+  }
+
+  function renderNavStats() {
+    if (!els.navStatsCard) return;
+    var isNav = state.configTheme === "nav";
+    els.navStatsCard.classList.toggle("hidden", !isNav);
+    if (!isNav) return;
+    var stats = (state.data && state.data.config && state.data.config.nav && state.data.config.nav.stats) || {};
+    var boxes = els.navStatsCard.querySelectorAll("input[data-stat]");
+    Array.prototype.forEach.call(boxes, function (box) {
+      var key = box.dataset.stat;
+      box.checked = stats[key] !== false;
+    });
+  }
+
+  function renderAll() {
+    renderSummary();
+    renderThemes();
+    renderConfigThemeTabs();
+    renderPresets();
+    renderNavStats();
+  }
+
+  function switchTab(tab) {
+    state.tab = tab === "config" ? "config" : "themes";
+    Array.prototype.forEach.call(els.tabBtns || [], function (btn) {
+      btn.classList.toggle("active", btn.dataset.tab === state.tab);
+    });
+    if (els.tabThemes) els.tabThemes.classList.toggle("hidden", state.tab !== "themes");
+    if (els.tabConfig) els.tabConfig.classList.toggle("hidden", state.tab !== "config");
+  }
+
+  function applyPayload(data) {
+    if (!data || !Array.isArray(data.themes)) return false;
+    state.data = data;
+    renderAll();
+    return true;
   }
 
   async function load() {
-    els.list.innerHTML = '<div class="loading"><span class="spinner"></span>加载中…</div>';
+    if (els.themesList) {
+      els.themesList.innerHTML = '<div class="loading"><span class="spinner"></span>加载中…</div>';
+    }
+    if (els.presetList) {
+      els.presetList.innerHTML = '<div class="loading"><span class="spinner"></span>加载中…</div>';
+    }
     try {
-      var results = await Promise.all([
-        API.get("/api/admin/themes"),
-        API.get("/api/admin/settings")
-      ]);
-      state.themes = results[0] || [];
-      var settings = results[1] || {};
-      state.defaultTheme = settings.default_theme || "";
-      state.enabled = parseEnabled(settings.enabled_themes);
-      renderSummary();
-      render();
+      var data = await API.get("/api/admin/theme-settings");
+      if (!applyPayload(data)) throw new Error("主题设置数据格式异常");
     } catch (err) {
-      els.list.innerHTML = UI.renderEmpty(err.message || "加载失败");
-      els.summary.textContent = "加载失败";
+      if (els.themesList) els.themesList.innerHTML = UI.renderEmpty(err.message || "加载失败");
+      if (els.presetList) els.presetList.innerHTML = UI.renderEmpty(err.message || "加载失败");
+      if (els.summary) els.summary.textContent = "加载失败";
     }
   }
 
-  function findTheme(id) {
-    return state.themes.find(function (t) { return String(t.id) === String(id); });
-  }
-
-  function uploadTheme() {
-    var file = els.file.files && els.file.files[0];
-    if (!file) { UI.toast("请选择主题 ZIP 文件", "warning"); return; }
-    var fd = new FormData();
-    fd.append("file", file);
-    els.uploadBtn.disabled = true;
-    API.postForm("/api/admin/themes", fd)
-      .then(function () {
-        UI.toast("主题上传成功", "success");
-        els.file.value = "";
-        load();
-      })
-      .catch(function (err) { UI.toast(err.message || "上传失败", "error"); })
-      .finally(function () { els.uploadBtn.disabled = false; });
-  }
-
-  async function downloadTheme(theme) {
+  async function activateTheme(theme) {
     try {
-      var res = await fetch(API_BASE + "/api/admin/themes/" + encodeURIComponent(theme.id) + "/download", {
-        headers: { Authorization: "Bearer " + API.getToken() }
-      });
-      if (!res.ok) {
-        var data = null;
-        try { data = await res.json(); } catch (e) { /* ignore */ }
-        throw new Error((data && data.detail) || ("下载失败（HTTP " + res.status + "）"));
-      }
-      var blob = await res.blob();
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = theme.id + "-theme.zip";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      var data = await API.put("/api/admin/theme-settings/active", { theme_id: theme.id });
+      applyPayload(data);
+      UI.toast("已启用「" + (theme.name || theme.id) + "」主题", "success");
     } catch (err) {
-      UI.toast(err.message || "下载失败", "error");
+      UI.toast(err.message || "启用失败", "error");
     }
   }
 
-  async function setDefault(theme) {
+  async function setDefaultPreset(presetId) {
     try {
-      await API.post("/api/admin/themes/" + encodeURIComponent(theme.id) + "/set-default");
-      UI.toast("已设为默认主题", "success");
-      load();
+      var data = await API.put(
+        themePath(state.configTheme) + "/presets/" + encodeURIComponent(presetId) + "/default"
+      );
+      applyPayload(data);
+      UI.toast("已设为默认预设", "success");
     } catch (err) {
       UI.toast(err.message || "操作失败", "error");
     }
   }
 
-  async function toggleEnabled(theme) {
-    var wasEnabled = isEnabled(theme.id);
-    var next = state.enabled.slice();
-    var idx = next.indexOf(theme.id);
-    if (idx === -1) next.push(theme.id);
-    else next.splice(idx, 1);
-    try {
-      await API.put("/api/admin/settings", { enabled_themes: next });
-      UI.toast(wasEnabled ? "已禁用该主题" : "已启用该主题", "success");
-      load();
-    } catch (err) {
-      UI.toast(err.message || "操作失败", "error");
-    }
-  }
-
-  async function deleteTheme(theme) {
-    var yes = await UI.confirmDialog("确定删除自定义主题「" + theme.name + "」吗？该操作不可恢复。", "删除");
+  async function deletePreset(preset) {
+    var yes = await UI.confirmDialog(
+      "确定删除预设「" + (preset.name || preset.id) + "」吗？该操作不可恢复。",
+      "删除"
+    );
     if (!yes) return;
     try {
-      await API.del("/api/admin/themes/" + encodeURIComponent(theme.id));
-      UI.toast("主题已删除", "success");
-      load();
+      var data = await API.del(
+        themePath(state.configTheme) + "/presets/" + encodeURIComponent(preset.id)
+      );
+      applyPayload(data);
+      UI.toast("预设已删除", "success");
     } catch (err) {
       UI.toast(err.message || "删除失败", "error");
     }
   }
 
-  function bindEvents() {
-    els.uploadBtn.addEventListener("click", function () { els.file.click(); });
-    els.file.addEventListener("change", uploadTheme);
-    els.refreshBtn.addEventListener("click", load);
-    els.list.addEventListener("click", function (e) {
-      var btn = e.target.closest("button[data-act]");
-      if (!btn) return;
-      var card = btn.closest(".image-card");
-      var theme = card && findTheme(card.dataset.id);
-      if (!theme) return;
-      var act = btn.dataset.act;
-      if (act === "download") downloadTheme(theme);
-      else if (act === "default") setDefault(theme);
-      else if (act === "toggle") toggleEnabled(theme);
-      else if (act === "delete") deleteTheme(theme);
+  async function uploadPreset(e) {
+    e.preventDefault();
+    var file = els.presetFile && els.presetFile.files && els.presetFile.files[0];
+    if (!file) {
+      UI.toast("请选择预设 CSS 文件", "warning");
+      return;
+    }
+    if (!/\.css$/i.test(file.name)) {
+      UI.toast("预设文件必须为 .css 格式", "warning");
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append("file", file);
+    var name = els.presetName ? els.presetName.value.trim() : "";
+    var presetId = els.presetId ? els.presetId.value.trim() : "";
+    if (name) fd.append("name", name);
+    if (presetId) fd.append("id", presetId);
+
+    els.presetUploadBtn.disabled = true;
+    try {
+      var data = await API.postForm(themePath(state.configTheme) + "/presets", fd);
+      applyPayload(data);
+      els.presetForm.reset();
+      UI.toast("预设上传成功", "success");
+    } catch (err) {
+      UI.toast(err.message || "上传失败", "error");
+    } finally {
+      els.presetUploadBtn.disabled = false;
+    }
+  }
+
+  async function saveNavStats() {
+    var stats = {};
+    var boxes = els.navStatsCard.querySelectorAll("input[data-stat]");
+    Array.prototype.forEach.call(boxes, function (box) {
+      stats[box.dataset.stat] = box.checked;
     });
+    STAT_KEYS.forEach(function (key) {
+      if (typeof stats[key] !== "boolean") stats[key] = true;
+    });
+
+    els.navStatsSave.disabled = true;
+    try {
+      var data = await API.put(themePath("nav") + "/config", { stats: stats });
+      applyPayload(data);
+      UI.toast("统计开关已保存", "success");
+    } catch (err) {
+      UI.toast(err.message || "保存失败", "error");
+    } finally {
+      els.navStatsSave.disabled = false;
+    }
+  }
+
+  function bindEvents() {
+    Array.prototype.forEach.call(els.tabBtns || [], function (btn) {
+      btn.addEventListener("click", function () { switchTab(btn.dataset.tab); });
+    });
+
+    if (els.configThemeTabs) {
+      els.configThemeTabs.addEventListener("click", function (e) {
+        var btn = e.target.closest(".tab-btn");
+        if (!btn) return;
+        var id = btn.dataset.themeId;
+        if (!id || id === state.configTheme) return;
+        state.configTheme = id;
+        renderConfigThemeTabs();
+        renderPresets();
+        renderNavStats();
+      });
+    }
+
+    if (els.themesList) {
+      els.themesList.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-act]");
+        if (!btn || btn.disabled) return;
+        var card = btn.closest(".image-card");
+        var theme = card && findTheme(card.dataset.id);
+        if (!theme) return;
+        if (btn.dataset.act === "activate") activateTheme(theme);
+      });
+    }
+
+    if (els.presetList) {
+      els.presetList.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-act]");
+        if (!btn || btn.disabled) return;
+        var row = btn.closest("tr");
+        if (!row) return;
+        var presetId = row.dataset.presetId;
+        var presets = (state.data && state.data.presets && state.data.presets[state.configTheme]) || [];
+        var preset = presets.find(function (item) { return item.id === presetId; });
+        if (!preset) return;
+        if (btn.dataset.act === "default") setDefaultPreset(preset.id);
+        else if (btn.dataset.act === "delete") deletePreset(preset);
+      });
+    }
+
+    if (els.presetForm) els.presetForm.addEventListener("submit", uploadPreset);
+    if (els.navStatsSave) els.navStatsSave.addEventListener("click", saveNavStats);
+    if (els.refreshBtn) els.refreshBtn.addEventListener("click", load);
   }
 
   Layout.boot({
@@ -209,6 +354,7 @@
     onReady: function () {
       cacheEls();
       bindEvents();
+      switchTab("themes");
       load();
     }
   }).catch(function (err) {

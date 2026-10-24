@@ -76,10 +76,18 @@
     updateSelectionUI();
   }
 
+  function thumbHtml(image) {
+    if (image.media_type === "video") {
+      return '<div class="media-placeholder">视频</div>';
+    }
+    if (!image.thumb_url) {
+      return '<div class="media-placeholder">无缩略图</div>';
+    }
+    return '<img src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url, image.media_token)) + '" loading="lazy" alt="">';
+  }
+
   function cardHtml(image) {
-    var thumb = image.thumb_url
-      ? '<img src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url)) + '" loading="lazy" alt="">'
-      : "";
+    var thumb = thumbHtml(image);
     return (
       '<div class="image-card" data-id="' + image.id + '">' +
         '<div class="thumb-wrap">' +
@@ -336,7 +344,13 @@
   async function loadOptions() {
     try {
       var results = await Promise.all([API.get("/api/folders"), API.get("/api/tags")]);
-      state.folders = UI.flattenFolders(results[0]);
+      var rawFolders = Array.isArray(results[0]) ? results[0] : [];
+      var locked = {};
+      rawFolders.forEach(function (f) { if (f && f.has_password) locked[f.id] = true; });
+      state.folders = UI.flattenFolders(rawFolders).map(function (folder) {
+        if (locked[folder.id]) folder.label += "（加密）";
+        return folder;
+      });
       state.tags = results[1] || [];
       UI.fillFolderSelect(els.folder, state.folders, { allLabel: "全部文件夹" });
       els.tag.innerHTML = '<option value="">全部标签</option>' + state.tags.map(function (t) {

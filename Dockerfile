@@ -28,10 +28,12 @@ COPY backend ./backend
 COPY frontend ./frontend
 COPY admin ./admin
 COPY docker ./docker
+COPY migrations ./migrations
+COPY alembic.ini ./
 COPY run.py ./
 
 # 数据目录：运行时建议挂载卷持久化（数据库、原图、缩略图、自定义主题）
-RUN mkdir -p /app/data/uploads /app/data/thumbnails /app/data/themes
+RUN mkdir -p /app/data/uploads /app/data/thumbnails /app/data/theme-presets
 
 # 对外端口（默认值；如用环境变量改动端口，请同步调整端口映射）
 EXPOSE 8080 8000 8001

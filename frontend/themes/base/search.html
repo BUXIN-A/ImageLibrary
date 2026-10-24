@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme-id="base" data-preset="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>搜索 - 图片库</title>
+  <link id="preset-style" rel="stylesheet" href="/presets/light.css?v=2.0.0">
+  <script>
+    (function () {
+      var themeId = 'base';
+      var preset = 'light';
+      try {
+        var stored = localStorage.getItem('il_preset_' + themeId);
+        if (stored) preset = stored;
+      } catch (e) { /* 忽略隐私模式等异常 */ }
+      document.documentElement.setAttribute('data-preset', preset);
+      var link = document.getElementById('preset-style');
+      if (link) link.setAttribute('href', '/presets/' + encodeURIComponent(preset) + '.css?v=2.0.0');
+    })();
+  </script>
+  <link rel="stylesheet" href="css/base.css?v=2.0.0">
+  <link rel="stylesheet" href="css/layout.css?v=2.0.0">
+  <link rel="stylesheet" href="css/components.css?v=2.0.0">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container">
+    <section class="page-head">
+      <div>
+        <h1 class="page-title">搜索</h1>
+        <p class="page-subtitle">按关键词、标签或分类查找图片与视频</p>
+      </div>
+    </section>
+
+    <form id="search-form" class="filter-bar" role="search">
+      <input id="q" class="input" type="search" placeholder="输入关键词（标题 / 描述）…" aria-label="关键词">
+      <select id="tag" class="select" aria-label="标签">
+        <option value="">全部标签</option>
+      </select>
+      <select id="folder" class="select" aria-label="分类">
+        <option value="">全部分类</option>
+      </select>
+      <button class="btn btn--primary" type="submit">搜索</button>
+      <button id="reset-btn" class="btn btn--ghost" type="button">重置</button>
+    </form>
+
+    <div id="result-count" class="result-count"></div>
+    <div id="grid" class="image-grid"></div>
+    <div id="pagination" class="pagination"></div>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script defer src="js/config.js?v=2.0.0"></script>
+  <script defer src="js/api.js?v=2.0.0"></script>
+  <script defer src="js/user.js?v=2.0.0"></script>
+  <script defer src="js/ui.js?v=2.0.0"></script>
+  <script defer src="js/theme.js?v=2.0.0"></script>
+  <script defer src="js/folder-access.js?v=2.0.0"></script>
+  <script defer src="js/layout.js?v=2.0.0"></script>
+  <script defer src="js/prefetch.js?v=2.0.0"></script>
+  <script defer src="js/pages/search.js?v=2.0.0"></script>
+</body>
+</html>

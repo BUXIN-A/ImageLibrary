@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme-id="nav" data-preset="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>导航首页 - 图片库</title>
+  <!-- 首屏预设：内联读取本地记忆，改写预设 CSS 链接，避免闪烁 -->
+  <link id="preset-style" rel="stylesheet" href="/presets/light.css?v=2.0.0">
+  <script>
+    (function () {
+      var preset = 'light';
+      try {
+        var stored = localStorage.getItem('il_preset_nav');
+        if (stored) preset = stored;
+      } catch (e) { /* 忽略隐私模式等异常 */ }
+      document.documentElement.setAttribute('data-preset', preset);
+      var link = document.getElementById('preset-style');
+      if (link) link.setAttribute('href', '/presets/' + encodeURIComponent(preset) + '.css?v=2.0.0');
+    })();
+  </script>
+  <!-- 基础样式 -->
+  <link rel="stylesheet" href="css/base.css?v=2.0.0">
+  <link rel="stylesheet" href="css/layout.css?v=2.0.0">
+  <link rel="stylesheet" href="css/components.css?v=2.0.0">
+  <link rel="stylesheet" href="css/nav.css?v=2.0.0">
+</head>
+<body>
+  <div id="app-header"></div>
+
+  <main class="container nav-home">
+    <section class="nav-hero">
+      <p class="nav-hero__eyebrow">图片库导航</p>
+      <h1 class="nav-hero__title">欢迎来到 <span id="nav-site-name">图片库</span></h1>
+      <p class="nav-hero__subtitle">按分类快速进入，或直接浏览全部公开图片与视频。</p>
+      <div class="nav-hero__actions">
+        <a class="btn btn--primary" href="folder.html">浏览分类</a>
+        <a class="btn btn--ghost" href="search.html">搜索内容</a>
+      </div>
+    </section>
+
+    <section id="stats-section" class="nav-section" aria-labelledby="stats-title">
+      <div class="nav-section__head">
+        <div>
+          <h2 id="stats-title" class="nav-section__title">站点统计</h2>
+          <p class="nav-section__subtitle">公开内容概况</p>
+        </div>
+      </div>
+      <div id="stats-grid" class="nav-stats"></div>
+    </section>
+
+    <section class="nav-section" aria-labelledby="folders-title">
+      <div class="nav-section__head">
+        <div>
+          <h2 id="folders-title" class="nav-section__title">分类入口</h2>
+          <p id="folder-summary" class="nav-section__subtitle">正在加载分类…</p>
+        </div>
+      </div>
+      <div id="folder-grid" class="nav-folders"></div>
+    </section>
+
+    <section class="nav-section" aria-labelledby="gallery-title">
+      <div class="nav-section__head">
+        <div>
+          <h2 id="gallery-title" class="nav-section__title">全部图片</h2>
+          <p class="nav-section__subtitle">不含未解锁的加密分类内容</p>
+        </div>
+        <a class="nav-section__more" href="folder.html">查看分类 →</a>
+      </div>
+      <div id="result-count" class="result-count"></div>
+      <div id="grid" class="image-grid"></div>
+      <div id="pagination" class="pagination"></div>
+    </section>
+  </main>
+
+  <div id="app-footer"></div>
+  <div id="toast-root"></div>
+
+  <script defer src="js/config.js?v=2.0.0"></script>
+  <script defer src="js/api.js?v=2.0.0"></script>
+  <script defer src="js/user.js?v=2.0.0"></script>
+  <script defer src="js/ui.js?v=2.0.0"></script>
+  <script defer src="js/theme.js?v=2.0.0"></script>
+  <script defer src="js/folder-access.js?v=2.0.0"></script>
+  <script defer src="js/layout.js?v=2.0.0"></script>
+  <script defer src="js/prefetch.js?v=2.0.0"></script>
+  <script defer src="js/pages/index.js?v=2.0.0"></script>
+</body>
+</html>

@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 from backend.app.config import settings  # noqa: E402
 from backend.app.main import app as api_app  # noqa: E402
-from backend.app.static_server import create_static_app  # noqa: E402
+from backend.app.static_server import create_frontend_app, create_static_app  # noqa: E402
 
 
 def _serve(app, host: str, port: int) -> None:
@@ -35,7 +35,7 @@ def _print_banner() -> None:
 
 def main() -> None:
     """启动三个服务：前台/后台静态站运行于守护线程，API 运行于主线程。"""
-    frontend_app = create_static_app(str(ROOT / "frontend"), site_routes=True)
+    frontend_app = create_frontend_app(str(ROOT / "frontend" / "themes"))
     admin_app = create_static_app(str(ROOT / "admin"), admin_config=True)
 
     threading.Thread(

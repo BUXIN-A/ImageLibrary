@@ -3,21 +3,23 @@
 import math
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
 from backend.app.export_service import build_zip_file, cleanup_file
-from backend.app.images_service import delete_files, process_upload
+from backend.app.images_service import delete_files, process_upload_stream
+from backend.app.media_service import admin_image_out
 from backend.app.models import Folder, Image, Tag, now
 from backend.app.schemas import (
     AdminExportRequest,
+    AdminImageOut,
     BatchImagesRequest,
-    ImageOut,
     ImageUpdate,
     PageResponse,
 )
@@ -29,6 +31,14 @@ router = APIRouter(
     tags=["admin-images"],
     dependencies=[Depends(get_current_admin)],
 )
+
+
+def _validate_folder(db: Session, folder_id: Optional[int]) -> None:
+    """校验目标文件夹存在；``None`` 表示未分类，直接放行。"""
+    if folder_id is None:
+        return
+    if db.get(Folder, folder_id) is None:
+        raise HTTPException(status_code=400, detail="文件夹不存在")
 
 
 def _resolve_tags(db: Session, names: Optional[list[str]]) -> list[Tag]:
@@ -86,7 +96,7 @@ def _apply_sort(query, sort: Optional[str]):
     return query.order_by(Image.created_at.desc(), Image.id.desc())
 
 
-@router.get("", response_model=PageResponse[ImageOut])
+@router.get("", response_model=PageResponse[AdminImageOut])
 def list_images(
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=200),
@@ -97,15 +107,24 @@ def list_images(
     include_deleted: int = Query(0),
     sort: str = Query("latest"),
     db: Session = Depends(get_db),
-) -> PageResponse[ImageOut]:
+) -> PageResponse[AdminImageOut]:
     """后台图片分页列表（默认不含回收站）。"""
     query = _build_query(db, q, folder_id, tag, status, include_deleted == 1)
     query = _apply_sort(query, sort)
     total = query.count()
-    items = query.offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.options(selectinload(Image.folder))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     pages = math.ceil(total / page_size) if page_size else 0
-    return PageResponse[ImageOut](
-        items=items, total=total, page=page, page_size=page_size, pages=pages
+    return PageResponse[AdminImageOut](
+        items=[admin_image_out(image) for image in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
     )
 
 
@@ -129,10 +148,10 @@ async def upload_images(
     success = 0
     failed = 0
     for upload in files:
-        raw = await upload.read()
         original_name = upload.filename or ""
         try:
-            info = process_upload(raw, original_name)
+            # 同步文件 IO 放到线程池，避免阻塞事件循环
+            info = await run_in_threadpool(process_upload_stream, upload, original_name)
             image = Image(
                 filename=info["filename"],
                 original_name=original_name,
@@ -157,7 +176,7 @@ async def upload_images(
                     "filename": original_name,
                     "ok": True,
                     "error": None,
-                    "image": ImageOut.model_validate(image),
+                    "image": admin_image_out(image),
                 }
             )
             success += 1
@@ -203,6 +222,7 @@ def batch_images(
             delete_files(image)
             db.delete(image)
     elif action == "move":
+        _validate_folder(db, payload.folder_id)
         for image in images:
             image.folder_id = payload.folder_id
     elif action == "tag":
@@ -262,16 +282,18 @@ def export_images(
     )
 
 
-@router.patch("/{image_id}", response_model=ImageOut)
+@router.patch("/{image_id}", response_model=AdminImageOut)
 def update_image(
     image_id: int, payload: ImageUpdate = Body(...), db: Session = Depends(get_db)
-) -> Image:
+) -> AdminImageOut:
     """编辑图片信息；tags 传入时整体替换该图片标签。"""
     image = db.get(Image, image_id)
     if image is None:
         raise HTTPException(status_code=404, detail="图片不存在")
 
     data = payload.model_dump(exclude_unset=True)
+    if "folder_id" in data:
+        _validate_folder(db, data["folder_id"])
     for field in ("title", "description", "folder_id", "status"):
         if field in data:
             setattr(image, field, data[field])
@@ -280,7 +302,7 @@ def update_image(
 
     db.commit()
     db.refresh(image)
-    return image
+    return admin_image_out(image)
 
 
 @router.delete("/{image_id}")
@@ -320,7 +342,9 @@ def restore_image(image_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/{image_id}/share")
-def share_image(image_id: int, db: Session = Depends(get_db)) -> dict:
+def share_image(
+    image_id: int, request: Request, db: Session = Depends(get_db)
+) -> dict:
     """为图片生成分享 token 与分享链接（若已存在则复用）。"""
     image = db.get(Image, image_id)
     if image is None:
@@ -330,6 +354,6 @@ def share_image(image_id: int, db: Session = Depends(get_db)) -> dict:
         db.commit()
         db.refresh(image)
     share_url = (
-        f"{effective_frontend_base(db)}/share.html?token={image.share_token}"
+        f"{effective_frontend_base(db, request)}/share.html?token={image.share_token}"
     )
     return {"share_token": image.share_token, "share_url": share_url}

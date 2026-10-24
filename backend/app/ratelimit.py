@@ -49,3 +49,6 @@ class SlidingWindowLimiter:
 
 # 模块级单例：凭证上传限流
 upload_limiter = SlidingWindowLimiter()
+
+# 模块级单例：分类密码尝试限流（5 分钟内最多 10 次）
+folder_unlock_limiter = SlidingWindowLimiter(window_seconds=300, max_requests=10)

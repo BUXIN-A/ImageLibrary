@@ -1,25 +1,34 @@
 # -*- coding: utf-8 -*-
-"""公开图片路由：列表、详情、下载、分享与批量导出（仅返回已公开未删除图片）。"""
+"""公开图片路由：列表、详情、下载、分享与批量导出（仅返回已公开未删除图片）。
+
+加密分类的图片默认不出现在公开列表中；提供该分类的有效解锁令牌
+（``folder_token`` query 或 ``X-Folder-Token`` header）后才可访问。
+"""
 import math
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-from sqlalchemy import select
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, selectinload
 from starlette.background import BackgroundTask
 
 from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.deps import client_ip
 from backend.app.export_service import build_zip_file, cleanup_file
+from backend.app.media_service import (
+    image_folder_locked,
+    parse_folder_token,
+)
 from backend.app.models import Folder, Image, Tag
 from backend.app.notify_service import CATEGORY_VISIT, LEVEL_INFO, log
-from backend.app.schemas import ExportRequest, ImageOut, PageResponse
+from backend.app.schemas import ExportRequest, PageResponse, PublicImageOut
 from backend.app.seed import get_bool_setting
 
 router = APIRouter(prefix="/api", tags=["images"])
+
+_LOCKED_DETAIL = "该分类已加密，请先解锁"
 
 
 def _public_query(db: Session):
@@ -27,6 +36,11 @@ def _public_query(db: Session):
     return db.query(Image).filter(
         Image.status == "approved", Image.is_deleted.is_(False)
     )
+
+
+def _locked_folder_ids():
+    """设置了访问密码的分类 id 子查询。"""
+    return select(Folder.id).where(Folder.password_hash.isnot(None))
 
 
 def _apply_sort(query, sort: str):
@@ -38,18 +52,54 @@ def _apply_sort(query, sort: str):
     return query.order_by(Image.created_at.desc(), Image.id.desc())
 
 
-@router.get("/images", response_model=PageResponse[ImageOut])
+def _public_out(image: Image) -> PublicImageOut:
+    """构造公开图片响应，并标记所属分类是否加密。"""
+    out = PublicImageOut.model_validate(image)
+    out.folder_locked = image_folder_locked(image)
+    return out
+
+
+def _folder_accessible(image: Image, db: Session, folder_token: Optional[str]) -> bool:
+    """判断当前请求是否有权访问图片所属分类（无密码分类恒为 True）。"""
+    folder = image.folder
+    if folder is None or not folder.password_hash:
+        return True
+    unlocked = parse_folder_token(folder_token, db)
+    return unlocked is not None and unlocked.id == folder.id
+
+
+def _apply_public_scope(query, db: Session, folder_token: Optional[str]):
+    """「全部」口径：默认排除加密分类；有效令牌可纳入其对应分类。"""
+    locked_ids = _locked_folder_ids()
+    unlocked = parse_folder_token(folder_token, db)
+    if unlocked is not None:
+        return query.filter(
+            or_(
+                Image.folder_id.is_(None),
+                Image.folder_id.notin_(locked_ids),
+                Image.folder_id == unlocked.id,
+            )
+        )
+    return query.filter(
+        or_(Image.folder_id.is_(None), Image.folder_id.notin_(locked_ids))
+    )
+
+
+@router.get("/images", response_model=PageResponse[PublicImageOut])
 def list_images(
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=200),
     q: Optional[str] = Query(None),
     folder_id: Optional[int] = Query(None),
+    uncategorized: int = Query(0),
     tag: Optional[str] = Query(None),
     sort: str = Query("latest"),
-    include_subfolders: int = Query(0),
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
     db: Session = Depends(get_db),
-) -> PageResponse[ImageOut]:
-    """公开图片列表：支持关键词、文件夹（可含子文件夹）、标签与排序。"""
+) -> PageResponse[PublicImageOut]:
+    """公开图片列表：支持关键词、分类、未分类、标签与排序。"""
+    token = folder_token or x_folder_token
     query = _public_query(db)
 
     if q:
@@ -66,41 +116,53 @@ def list_images(
         query = query.filter(Image.tags.any(Tag.name == tag))
 
     if folder_id is not None:
-        if include_subfolders == 1:
-            folder = db.get(Folder, folder_id)
-            if folder is None:
-                return PageResponse[ImageOut](
-                    items=[], total=0, page=page, page_size=page_size, pages=0
-                )
-            # 物化路径前缀匹配该文件夹及其全部后代
-            sub_ids = select(Folder.id).where(Folder.path.like(f"{folder.path}%"))
-            query = query.filter(Image.folder_id.in_(sub_ids))
-        else:
-            query = query.filter(Image.folder_id == folder_id)
+        folder = db.get(Folder, folder_id)
+        if folder is None:
+            return PageResponse[PublicImageOut](
+                items=[], total=0, page=page, page_size=page_size, pages=0
+            )
+        if folder.password_hash:
+            unlocked = parse_folder_token(token, db)
+            if unlocked is None or unlocked.id != folder.id:
+                raise HTTPException(status_code=403, detail=_LOCKED_DETAIL)
+        query = query.filter(Image.folder_id == folder_id)
+    elif uncategorized == 1:
+        query = query.filter(Image.folder_id.is_(None))
+    else:
+        query = _apply_public_scope(query, db, token)
 
     query = _apply_sort(query, sort)
     total = query.count()
-    items = query.offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.options(selectinload(Image.folder))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
     pages = math.ceil(total / page_size) if page_size else 0
-    return PageResponse[ImageOut](
-        items=items, total=total, page=page, page_size=page_size, pages=pages
+    return PageResponse[PublicImageOut](
+        items=[_public_out(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
     )
 
 
 @router.post("/images/export")
 def export_images(
-    payload: ExportRequest = Body(...), db: Session = Depends(get_db)
+    payload: ExportRequest = Body(...),
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
+    db: Session = Depends(get_db),
 ) -> FileResponse:
-    """公开批量导出：仅打包其中已公开且未删除的图片。"""
+    """公开批量导出：仅打包其中可公开访问的图片（加密分类需先解锁）。"""
     if not payload.ids:
         raise HTTPException(status_code=400, detail="未选择要导出的图片")
 
-    images = (
-        _public_query(db)
-        .filter(Image.id.in_(payload.ids))
-        .order_by(Image.id.asc())
-        .all()
-    )
+    query = _public_query(db).filter(Image.id.in_(payload.ids))
+    query = _apply_public_scope(query, db, folder_token or x_folder_token)
+    images = query.order_by(Image.id.asc()).all()
     if not images:
         raise HTTPException(status_code=400, detail="没有可导出的图片")
 
@@ -113,12 +175,29 @@ def export_images(
     )
 
 
-@router.get("/images/{image_id}", response_model=ImageOut)
-def get_image(image_id: int, request: Request, db: Session = Depends(get_db)) -> Image:
-    """公开图片详情，浏览量 +1；不存在或未公开返回 404。"""
+@router.get("/images/{image_id}", response_model=PublicImageOut)
+def get_image(
+    image_id: int,
+    request: Request,
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
+    db: Session = Depends(get_db),
+) -> PublicImageOut:
+    """公开图片详情，浏览量 +1；不存在返回 404，加密分类未解锁返回 403。"""
     image = _public_query(db).filter(Image.id == image_id).first()
     if image is None:
         raise HTTPException(status_code=404, detail="图片不存在")
+    if not _folder_accessible(image, db, folder_token or x_folder_token):
+        folder = image.folder
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": _LOCKED_DETAIL,
+                "folder_id": folder.id if folder is not None else None,
+                "folder_locked": True,
+            },
+        )
+
     image.views = (image.views or 0) + 1
     db.commit()
     db.refresh(image)
@@ -130,15 +209,22 @@ def get_image(image_id: int, request: Request, db: Session = Depends(get_db)) ->
             f"浏览图片 #{image.id}：{image.title or image.original_name}",
             ip=client_ip(request),
         )
-    return image
+    return _public_out(image)
 
 
 @router.get("/images/{image_id}/download")
-def download_image(image_id: int, db: Session = Depends(get_db)) -> FileResponse:
-    """下载公开图片原图，下载量 +1。"""
+def download_image(
+    image_id: int,
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """下载公开图片原图，下载量 +1；加密分类未解锁时不返回文件。"""
     image = _public_query(db).filter(Image.id == image_id).first()
     if image is None:
         raise HTTPException(status_code=404, detail="图片不存在")
+    if not _folder_accessible(image, db, folder_token or x_folder_token):
+        raise HTTPException(status_code=403, detail=_LOCKED_DETAIL)
 
     file_path = settings.UPLOAD_DIR / image.filename
     if not file_path.exists():
@@ -153,10 +239,28 @@ def download_image(image_id: int, db: Session = Depends(get_db)) -> FileResponse
     )
 
 
-@router.get("/share/{token}", response_model=ImageOut)
-def get_shared_image(token: str, db: Session = Depends(get_db)) -> Image:
-    """通过分享 token 获取公开图片详情；不存在返回 404。"""
+@router.get("/share/{token}", response_model=PublicImageOut)
+def get_shared_image(
+    token: str,
+    folder_token: Optional[str] = Query(None),
+    x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
+    db: Session = Depends(get_db),
+) -> PublicImageOut:
+    """通过分享 token 获取公开图片详情；加密分类需先解锁。"""
     image = _public_query(db).filter(Image.share_token == token).first()
     if image is None:
         raise HTTPException(status_code=404, detail="分享不存在")
-    return image
+
+    folder = image.folder
+    if folder is not None and folder.password_hash:
+        unlocked = parse_folder_token(folder_token or x_folder_token, db)
+        if unlocked is None or unlocked.id != folder.id:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "该分享所属分类已加密",
+                    "folder_id": folder.id,
+                    "folder_locked": True,
+                },
+            )
+    return _public_out(image)

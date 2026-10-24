@@ -11,10 +11,11 @@ from fastapi import (
     UploadFile,
 )
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.database import get_db
 from backend.app.deps import client_ip, validate_upload_token
-from backend.app.images_service import process_upload
+from backend.app.images_service import process_upload_stream
 from backend.app.models import Image, now
 from backend.app.ratelimit import upload_limiter
 
@@ -78,10 +79,15 @@ async def credential_upload(
             failed += 1
             continue
 
-        raw = await upload.read()
         original_name = upload.filename or ""
         try:
-            info = process_upload(raw, original_name, max_size=token_obj.max_file_size)
+            # 同步文件 IO 放到线程池，避免阻塞事件循环
+            info = await run_in_threadpool(
+                process_upload_stream,
+                upload,
+                original_name,
+                max_size=token_obj.max_file_size,
+            )
             image = Image(
                 filename=info["filename"],
                 original_name=original_name,

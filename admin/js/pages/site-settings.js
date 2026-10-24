@@ -14,9 +14,6 @@
     els.siteDescription = document.getElementById("site-description");
     els.siteKeywords = document.getElementById("site-keywords");
     els.footerText = document.getElementById("footer-text");
-    els.apiBaseUrl = document.getElementById("api-base-url");
-    els.frontendBaseUrl = document.getElementById("frontend-base-url");
-    els.adminApiBaseUrl = document.getElementById("admin-api-base-url");
     els.apiBaseResolved = document.getElementById("api-base-resolved");
     els.frontendBaseResolved = document.getElementById("frontend-base-resolved");
     els.adminApiBaseResolved = document.getElementById("admin-api-base-resolved");
@@ -57,16 +54,21 @@
     var apiBase = data.resolved_api_base_url || data.api_base_url || "";
     var adminApiBase = data.resolved_admin_api_base_url || apiBase;
     var frontendBase = (data.resolved_frontend_base_url || data.frontend_base_url || "").replace(/\/$/, "");
-    els.apiBaseResolved.textContent = apiBase || "-";
-    els.adminApiBaseResolved.textContent = adminApiBase || "-";
-    els.frontendBaseResolved.textContent = frontendBase || "-";
-    if (frontendBase) {
-      var robotsUrl = frontendBase + "/robots.txt";
-      var sitemapUrl = frontendBase + "/sitemap.xml";
-      els.robotsUrl.value = robotsUrl;
-      els.sitemapUrl.value = sitemapUrl;
-      els.robotsLink.href = robotsUrl;
-      els.sitemapLink.href = sitemapUrl;
+    if (els.apiBaseResolved) els.apiBaseResolved.textContent = apiBase || "-";
+    if (els.adminApiBaseResolved) els.adminApiBaseResolved.textContent = adminApiBase || "-";
+    if (els.frontendBaseResolved) els.frontendBaseResolved.textContent = frontendBase || "-";
+
+    var robotsUrl = frontendBase ? frontendBase + "/robots.txt" : "";
+    var sitemapUrl = frontendBase ? frontendBase + "/sitemap.xml" : "";
+    if (els.robotsUrl) els.robotsUrl.value = robotsUrl;
+    if (els.sitemapUrl) els.sitemapUrl.value = sitemapUrl;
+    if (els.robotsLink) {
+      if (robotsUrl) els.robotsLink.href = robotsUrl;
+      else els.robotsLink.removeAttribute("href");
+    }
+    if (els.sitemapLink) {
+      if (sitemapUrl) els.sitemapLink.href = sitemapUrl;
+      else els.sitemapLink.removeAttribute("href");
     }
   }
 
@@ -241,9 +243,6 @@
     els.siteDescription.value = data.site_description || "";
     els.siteKeywords.value = data.site_keywords || "";
     els.footerText.value = data.footer_text || "";
-    els.apiBaseUrl.value = data.api_base_url || "";
-    els.frontendBaseUrl.value = data.frontend_base_url || "";
-    els.adminApiBaseUrl.value = data.admin_api_base_url || "";
     els.allowIndex.checked = data.allow_index !== false;
     els.robotsExtra.value = data.robots_extra || "";
     els.sitemapEnabled.checked = data.sitemap_enabled !== false;

@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""数据库初始化：创建目录、建表、写入默认管理员与默认设置。"""
-import json
+"""数据库初始化：创建目录、执行迁移、写入默认管理员与默认设置。"""
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
-from backend.app.database import SessionLocal, init_db
+from backend.app.database import SessionLocal, run_migrations
 from backend.app.models import Admin, Setting
 from backend.app.security import hash_password, verify_password
 
@@ -15,12 +14,8 @@ def _default_settings() -> dict[str, str]:
     """返回默认设置项（value 均为字符串）。"""
     return {
         "site_name": "我的图库",
-        "default_theme": "light",
-        "enabled_themes": json.dumps(
-            ["light", "dark", "ocean", "forest", "sunset", "sakura"],
-            ensure_ascii=False,
-        ),
         "upload_max_size": str(settings.MAX_UPLOAD_SIZE),
+        "upload_max_video_size": str(settings.MAX_VIDEO_UPLOAD_SIZE),
         # ---------- 站点元信息 ----------
         "site_title": "我的图库",
         "site_description": "",
@@ -62,9 +57,9 @@ def _default_settings() -> dict[str, str]:
 
 
 def init_seed() -> None:
-    """初始化数据目录、数据表、默认管理员与默认设置（幂等，可重复调用）。"""
+    """初始化数据目录、执行迁移、默认管理员与默认设置（幂等，可重复调用）。"""
     settings.ensure_dirs()
-    init_db()
+    run_migrations()
 
     db: Session = SessionLocal()
     try:
@@ -124,3 +119,14 @@ def get_bool_setting(db: Session, key: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def get_int_setting(db: Session, key: str, default: int) -> int:
+    """读取整型设置值；缺失、空值或非法内容时返回 default。"""
+    raw = get_setting(db, key)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default

@@ -68,22 +68,22 @@
             <div class="card-body">
               <div class="form-hint">
                 站点地址用于生成接口地址、分享链接与 OAuth 回调。为避免填错导致<strong>无法进入后台</strong>，
-                以下三项为只读，请通过「设置站点地址」按钮修改：保存前会先用当前浏览器探测新地址是否可用，探测通过才会写入。
+                以下仅为当前实际生效地址（只读），请通过「设置站点地址」按钮修改：保存前会先用当前浏览器探测新地址是否可用，探测通过才会写入。
               </div>
               <div class="form-field">
-                <label for="api-base-url">API 站点地址</label>
-                <input class="input" id="api-base-url" type="text" readonly>
-                <div class="form-hint">用于生成前端请求地址与 OAuth 回调地址；留空=自动；当前生效：<code id="api-base-resolved">-</code></div>
+                <label>API 站点地址（实际生效）</label>
+                <div class="resolved-address" id="api-base-resolved">-</div>
+                <div class="form-hint">用于生成前端请求地址与 OAuth 回调地址；留空=自动。</div>
               </div>
               <div class="form-field">
-                <label for="frontend-base-url">前台站点地址</label>
-                <input class="input" id="frontend-base-url" type="text" readonly>
-                <div class="form-hint">用于生成分享链接、sitemap 与登录回跳；留空=自动；当前生效：<code id="frontend-base-resolved">-</code></div>
+                <label>前台站点地址（实际生效）</label>
+                <div class="resolved-address" id="frontend-base-resolved">-</div>
+                <div class="form-hint">用于生成分享链接、sitemap 与登录回跳；留空=自动。</div>
               </div>
               <div class="form-field">
-                <label for="admin-api-base-url">后台专属 API 站点地址</label>
-                <input class="input" id="admin-api-base-url" type="text" readonly>
-                <div class="form-hint">仅后台使用，留空=与 API 站点地址相同；当前生效：<code id="admin-api-base-resolved">-</code></div>
+                <label>后台专属 API 站点地址（实际生效）</label>
+                <div class="resolved-address" id="admin-api-base-resolved">-</div>
+                <div class="form-hint">仅后台使用，留空=与 API 站点地址相同。</div>
               </div>
               <div class="flex items-center gap-md flex-wrap">
                 <button type="button" class="btn btn-primary" id="addr-set-btn">设置站点地址</button>
@@ -177,15 +177,15 @@
             <div class="form-field">
               <label>robots.txt</label>
               <div class="flex items-center gap-sm">
-                <input class="input" id="robots-url" type="text" readonly value="http://127.0.0.1:8000/robots.txt">
-                <a class="btn btn-outline btn-sm" id="robots-link" href="http://127.0.0.1:8000/robots.txt" target="_blank" rel="noopener">打开</a>
+                <input class="input" id="robots-url" type="text" readonly value="">
+                <a class="btn btn-outline btn-sm" id="robots-link" target="_blank" rel="noopener">打开</a>
               </div>
             </div>
             <div class="form-field">
               <label>sitemap.xml</label>
               <div class="flex items-center gap-sm">
-                <input class="input" id="sitemap-url" type="text" readonly value="http://127.0.0.1:8000/sitemap.xml">
-                <a class="btn btn-outline btn-sm" id="sitemap-link" href="http://127.0.0.1:8000/sitemap.xml" target="_blank" rel="noopener">打开</a>
+                <input class="input" id="sitemap-url" type="text" readonly value="">
+                <a class="btn btn-outline btn-sm" id="sitemap-link" target="_blank" rel="noopener">打开</a>
               </div>
             </div>
           </div>

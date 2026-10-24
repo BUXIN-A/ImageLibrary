@@ -213,8 +213,16 @@
       finishProgress('上传完成：成功 ' + (data.success || 0) + ' 个，失败 ' + (data.failed || 0) + ' 个', false);
       renderUploadResults(data);
       UI.toast(data.message || '已提交，等待管理员审核', data.failed ? 'warning' : 'success');
-      // 上传成功后清空文件，便于继续上传
-      files = [];
+      // 仅移除上传成功的文件，失败项保留便于重试
+      var results = (data && data.results) || [];
+      if (results.length === files.length) {
+        files = files.filter(function (_file, index) {
+          var item = results[index];
+          return !(item && item.ok);
+        });
+      } else {
+        files = [];
+      }
       renderFileList();
     } catch (e) {
       finishProgress('上传失败：' + (e.message || '未知错误'), true);
@@ -255,7 +263,11 @@
       if (e.key === 'Enter') { e.preventDefault(); validateToken(); }
     });
 
-    dropzone.addEventListener('click', function () { fileInput.click(); });
+    // 点击上传区触发文件选择；若事件来自 input 本身则忽略，避免 click 冒泡递归
+    dropzone.addEventListener('click', function (e) {
+      if (e.target === fileInput) return;
+      fileInput.click();
+    });
     dropzone.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
     });

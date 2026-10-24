@@ -6,7 +6,7 @@
 
   var THEME = (window.APP_CONFIG && window.APP_CONFIG.THEME) || {};
   var FALLBACK_PRESET = { id: 'light', name: '亮色' };
-  var VERSION = '2.0.0';
+  var VERSION = '2.0.1';
   var initialized = false;
 
   /** 当前主题 id：优先 html[data-theme-id]，其次服务端注入的 active_theme。 */

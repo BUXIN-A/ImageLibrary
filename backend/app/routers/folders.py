@@ -2,7 +2,7 @@
 """分类路由：公开一级分类列表 / 汇总 / 解锁 + 管理端增删改（分类密码）。"""
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.deps import client_ip, get_current_admin
-from backend.app.media_service import create_folder_token
+from backend.app.media_service import create_folder_token, parse_folder_token
 from backend.app.models import Folder, Image
 from backend.app.ratelimit import folder_unlock_limiter
 from backend.app.schemas import FolderOut
@@ -47,8 +47,11 @@ class FolderUnlockRequest(BaseModel):
 
 
 # ---------------- 公共辅助 ----------------
-def _folder_out(folder: Folder, image_count: int = 0) -> FolderOut:
-    """构造一级分类响应（不暴露 password_hash）。"""
+def _folder_out(folder: Folder, image_count: Optional[int] = 0) -> FolderOut:
+    """构造一级分类响应（不暴露 password_hash）。
+
+    加密分类在未解锁时不返回图片数量（``image_count=None``），避免泄露受保护内容规模。
+    """
     return FolderOut(
         id=folder.id,
         name=folder.name,
@@ -82,11 +85,26 @@ def _locked_folder_ids():
 
 # ---------------- 公开接口 ----------------
 @router.get("/folders", response_model=list[FolderOut])
-def list_folders(db: Session = Depends(get_db)) -> list[FolderOut]:
-    """返回扁平分类列表；image_count 为该分类下已公开未删除图片数。"""
+def list_folders(
+    folder_token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+) -> list[FolderOut]:
+    """返回扁平分类列表。
+
+    ``image_count`` 为该分类下已公开未删除图片数；加密分类仅在提供有效
+    ``folder_token`` 时返回数量，否则为 ``None``（前端显示为「—」）。
+    """
     folders = db.query(Folder).order_by(Folder.sort_order, Folder.name).all()
     counts = _image_counts(db)
-    return [_folder_out(folder, counts.get(folder.id, 0)) for folder in folders]
+    unlocked = parse_folder_token(folder_token, db)
+    unlocked_id = unlocked.id if unlocked is not None else None
+    result: list[FolderOut] = []
+    for folder in folders:
+        count: Optional[int] = counts.get(folder.id, 0)
+        if folder.password_hash and folder.id != unlocked_id:
+            count = None
+        result.append(_folder_out(folder, count))
+    return result
 
 
 @router.get("/folders/summary")
@@ -224,11 +242,25 @@ def update_folder(
 
 
 @admin_router.delete("/{folder_id}")
-def delete_folder(folder_id: int, db: Session = Depends(get_db)) -> dict:
-    """删除分类：该分类图片变为未分类，分类本身删除。"""
+def delete_folder(
+    folder_id: int,
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+) -> dict:
+    """删除分类：该分类图片变为未分类，分类本身删除。
+
+    加密分类默认拒绝删除：图片转为未分类后会绕过密码保护变为公开，
+    必须显式传 ``force=true`` 确认。
+    """
     folder = db.get(Folder, folder_id)
     if folder is None:
         raise HTTPException(status_code=404, detail="分类不存在")
+
+    if folder.password_hash and not force:
+        raise HTTPException(
+            status_code=400,
+            detail="该分类已加密：删除后其图片将变为未分类并公开，请确认后使用强制删除",
+        )
 
     db.query(Image).filter(Image.folder_id == folder.id).update(
         {Image.folder_id: None}, synchronize_session=False

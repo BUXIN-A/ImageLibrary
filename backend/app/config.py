@@ -53,7 +53,8 @@ class Settings(BaseSettings):
     ADMIN_PORT: int = 8001
 
     # ---------- 认证与安全 ----------
-    SECRET_KEY: str = "change-me-please-in-production"
+    # 留空或仍为示例值时，启动会自动生成随机密钥并持久化到 data/.secret_key
+    SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     # 后台媒体预览签名 / 加密分类解锁令牌有效期（分钟）
@@ -62,7 +63,8 @@ class Settings(BaseSettings):
 
     # ---------- 默认管理员 ----------
     ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "admin123"
+    # 留空或为弱口令时，首次建库会自动生成随机密码并在控制台输出一次
+    ADMIN_PASSWORD: str = ""
     # 为 true 时：每次启动都用上面的环境变量覆盖已有管理员的账号与密码；
     # 为 false（默认）时：仅在数据库首次初始化（admins 表为空）时写入。
     ADMIN_FORCE_SYNC: bool = False
@@ -78,6 +80,14 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: set[str] = set(_IMAGE_EXTENSIONS)
     ALLOWED_MIME_TYPES: set[str] = set(_IMAGE_MIME_TYPES)
     THUMBNAIL_SIZE: int = 420  # 缩略图最长边像素
+
+    # ---------- 请求体 / 导出限制 ----------
+    # 单个 HTTP 请求体上限（字节，默认 512 MB）：在解析 multipart 前即拒绝超大请求
+    MAX_REQUEST_BODY_SIZE: int = 512 * 1024 * 1024
+    # 公开批量导出的单次图片数量上限与限流
+    PUBLIC_EXPORT_MAX_ITEMS: int = 100
+    PUBLIC_EXPORT_RATE_MAX: int = 10
+    PUBLIC_EXPORT_RATE_WINDOW: int = 60
 
     # ---------- 凭证上传限流 ----------
     RATE_LIMIT_MAX_REQUESTS: int = 20
@@ -133,11 +143,22 @@ class Settings(BaseSettings):
         return scheme
 
     def _request_hostname(self, request) -> str:
-        """取请求 Host 的主机名（去掉端口）；无请求返回空字符串。"""
+        """取请求主机名（去掉端口，兼容 IPv6 字面量）；无请求返回空字符串。"""
         if request is None:
             return ""
+        try:
+            hostname = request.url.hostname or ""
+        except (ValueError, AttributeError):
+            hostname = ""
+        if hostname:
+            return hostname.strip()
         host = request.headers.get("host", "") or ""
-        return host.split(":")[0].strip()
+        return host.strip()
+
+    @staticmethod
+    def _format_host(hostname: str) -> str:
+        """IPv6 字面量在 URL 中必须加方括号。"""
+        return f"[{hostname}]" if ":" in hostname else hostname
 
     def resolve_api_base(self, request=None) -> str:
         """解析前端应使用的 API 基地址（用于动态生成 config.js）。
@@ -149,7 +170,8 @@ class Settings(BaseSettings):
             return f"{self.PUBLIC_SCHEME}://{self.PUBLIC_HOST}:{self.API_PORT}"
         hostname = self._request_hostname(request)
         if hostname:
-            return f"{self.resolve_scheme(request)}://{hostname}:{self.API_PORT}"
+            host = self._format_host(hostname)
+            return f"{self.resolve_scheme(request)}://{host}:{self.API_PORT}"
         return self.API_BASE_URL.rstrip("/")
 
     def resolve_frontend_base(self, request=None) -> str:
@@ -158,7 +180,8 @@ class Settings(BaseSettings):
             return f"{self.PUBLIC_SCHEME}://{self.PUBLIC_HOST}:{self.FRONTEND_PORT}"
         hostname = self._request_hostname(request)
         if hostname:
-            return f"{self.resolve_scheme(request)}://{hostname}:{self.FRONTEND_PORT}"
+            host = self._format_host(hostname)
+            return f"{self.resolve_scheme(request)}://{host}:{self.FRONTEND_PORT}"
         return self.FRONTEND_BASE_URL.rstrip("/")
 
     def cors_origins(self) -> list[str]:

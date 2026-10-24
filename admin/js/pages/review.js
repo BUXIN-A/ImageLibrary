@@ -67,6 +67,8 @@
   function render() {
     if (!state.items.length) {
       els.list.innerHTML = UI.renderEmpty("暂无待审核图片");
+      // 空结果时同步重置全选与已选计数
+      updateSelectionUI();
       return;
     }
     els.list.innerHTML = '<div class="image-grid">' + state.items.map(cardHtml).join("") + "</div>";

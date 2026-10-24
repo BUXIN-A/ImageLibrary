@@ -2,12 +2,12 @@
 """标签路由：公开标签列表 + 管理端创建/删除。"""
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.deps import get_current_admin
-from backend.app.models import Image, ImageTag, Tag
+from backend.app.models import Folder, Image, ImageTag, Tag
 from backend.app.schemas import TagOut
 
 router = APIRouter(prefix="/api", tags=["tags"])
@@ -26,18 +26,24 @@ class TagCreate(BaseModel):
 
 @router.get("/tags", response_model=list[TagOut])
 def list_tags(db: Session = Depends(get_db)) -> list[TagOut]:
-    """公开标签列表，image_count 为已公开未删除图片数。"""
+    """公开标签列表：仅统计可公开访问的图片（排除加密分类），并隐藏零计数标签。"""
+    locked_ids = select(Folder.id).where(Folder.password_hash.isnot(None))
     counts = dict(
         db.query(ImageTag.tag_id, func.count(Image.id))
         .join(Image, Image.id == ImageTag.image_id)
-        .filter(Image.status == "approved", Image.is_deleted.is_(False))
+        .filter(
+            Image.status == "approved",
+            Image.is_deleted.is_(False),
+            or_(Image.folder_id.is_(None), Image.folder_id.notin_(locked_ids)),
+        )
         .group_by(ImageTag.tag_id)
         .all()
     )
     tags = db.query(Tag).order_by(Tag.name).all()
     return [
-        TagOut(id=tag.id, name=tag.name, image_count=counts.get(tag.id, 0))
+        TagOut(id=tag.id, name=tag.name, image_count=counts[tag.id])
         for tag in tags
+        if counts.get(tag.id)
     ]
 
 

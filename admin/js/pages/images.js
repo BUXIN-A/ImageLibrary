@@ -128,6 +128,8 @@
       state.total = (data && data.total) || 0;
       state.selected.clear();
       renderGrid();
+      // 空结果时同步重置全选与已选计数，避免残留上一次状态
+      if (!state.items.length) updateSelectionUI();
       UI.renderPagination(els.pagination, { page: state.page, pages: state.pages }, function (p) {
         state.page = p;
         load();

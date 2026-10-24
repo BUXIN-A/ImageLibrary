@@ -70,7 +70,8 @@
         '" href="folder.html?id=' + encodeURIComponent(folder.id) + '" data-id="' + folder.id + '">' +
         '<span class="folder-nav__name">' + lock + UI.escapeHtml(folder.name) + '</span>' +
         '<span class="folder-nav__meta"><span class="folder-nav__count">' +
-        (folder.image_count || 0) + '</span></span></a>';
+        (typeof folder.image_count === 'number' ? folder.image_count : '—') +
+        '</span></span></a>';
     }).join('');
     bindFolderItems();
   }

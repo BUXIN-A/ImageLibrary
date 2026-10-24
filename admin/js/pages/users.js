@@ -57,6 +57,8 @@
   function render() {
     if (!state.items.length) {
       els.tbody.innerHTML = '<tr><td colspan="8">' + UI.renderEmpty("没有符合条件的用户") + "</td></tr>";
+      // 空结果同步统计，避免显示上一次的「共 N 个」
+      els.summary.textContent = "共 0 个用户";
       return;
     }
     els.tbody.innerHTML = state.items.map(rowHtml).join("");

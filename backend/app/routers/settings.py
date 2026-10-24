@@ -21,9 +21,12 @@ admin_router = APIRouter(
 
 
 def _is_sensitive_key(key: str) -> bool:
-    """判断设置键是否为敏感项（密钥/口令类，不应明文返回）。"""
+    """判断设置键是否为敏感项（密钥/口令/令牌类，不应明文返回）。"""
     lowered = (key or "").strip().lower()
-    return "secret" in lowered
+    if any(word in lowered for word in ("secret", "password", "token")):
+        return True
+    # 形如 xxx_key 的配置项（如 api_key）同样视为敏感
+    return lowered.endswith("_key")
 
 
 def _safe_settings_map(items) -> dict:

@@ -3,8 +3,8 @@
 <h1>ImageLibrary</h1>
 
 [![Docker Publish](https://github.com/BUXIN-A/ImageLibrary/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/BUXIN-A/ImageLibrary/actions/workflows/docker-publish.yml)
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/BUXIN-A/ImageLibrary/blob/main/CHANGELOG.md)
-[![License](https://img.shields.io/badge/license-Unlicensed-lightgrey)](#license)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue)](https://github.com/BUXIN-A/ImageLibrary/blob/main/CHANGELOG.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **面向公开访问的图片与视频图库：访客免登录浏览，管理员使用独立后台管理；支持一级分类、分类密码、受控媒体、两套前台主题、上传 Token 审核与 Docker 部署。**
 
@@ -46,6 +46,10 @@
 - **密钥保护**：后台设置接口过滤键名包含 `secret` 的配置；OAuth 密钥仅通过登录设置接口的 `*_set` / `*_masked` 字段展示。
 - **站点地址**：只允许通过 `POST /api/admin/site/address` 写入，需要管理员账号密码二次校验，并由前端先探测新地址。
 - **代理头**：仅当直连来源属于 `TRUSTED_PROXIES` 时才采信 `X-Forwarded-For` / `X-Forwarded-Proto`；默认不信任任何代理。
+- **密钥与口令**：未配置 `SECRET_KEY` 时自动生成随机密钥并保存到 `data/.secret_key`；`ADMIN_PASSWORD` 留空或为弱口令时，首次建库会生成随机密码并只在启动日志打印一次。
+- **OAuth 安全**：`state` 同时保存在服务端与 HttpOnly Cookie 中，登录成功后用一次性 code 换取令牌（JWT 不出现在 URL）。
+- **上传与导出**：单个请求体上限由 `MAX_REQUEST_BODY_SIZE` 控制；公开导出限制单次数量并按 IP 限流。
+- **加密分类**：公开分类列表/标签/导航统计默认排除加密分类内容；删除加密分类必须显式 `force=true`（图片会转为未分类并公开）。
 
 ## 快速开始
 
@@ -80,14 +84,22 @@ API      : http://127.0.0.1:8080
 管理后台 : http://127.0.0.1:8001
 ```
 
-首次启动会自动执行 Alembic 迁移、创建 SQLite 数据库、默认管理员与主题预设。默认管理员：
+首次启动会自动执行 Alembic 迁移、创建 SQLite 数据库、管理员与主题预设。
+
+管理员密码规则：
+
+- 在 `.env` 中设置了强密码（`ADMIN_PASSWORD`）时，首次建库直接使用该密码；
+- 未设置或使用弱口令（如 `admin123`）时，系统会生成随机密码，并且**只在启动日志打印一次**：
 
 ```text
-用户名：admin
-密码：admin123
+========================================================
+ 已生成随机管理员密码（仅本次显示，请立即妥善保存）
+ 用户名：admin
+ 密码：<随机密码>
+========================================================
 ```
 
-> 首次登录后请立即在后台「账号与安全」中修改密码，并在生产环境修改 `SECRET_KEY`。
+> 首次登录后请立即在后台「账号与安全」中修改密码。未配置 `SECRET_KEY` 时系统会自动生成并保存到 `data/.secret_key`，可在 `.env` 中显式设置固定密钥。
 
 可选：在项目根目录创建 `.env` 覆盖默认配置（见 [配置](#配置)）。无需手动建库，启动时自动迁移。
 
@@ -114,9 +126,9 @@ docker compose -f docker-compose.deploy.yml up -d
 | `API_PORT` | `8080` | API 端口。 |
 | `FRONTEND_PORT` | `8000` | 前台公开站点端口。 |
 | `ADMIN_PORT` | `8001` | 管理后台端口。 |
-| `SECRET_KEY` | `change-me-please-in-production` | JWT 签名密钥，**生产环境必须修改**。 |
+| `SECRET_KEY` | 空 | JWT 签名密钥；留空会自动生成随机密钥并保存到 `data/.secret_key`，生产环境建议显式设置 >= 32 字节随机串。 |
 | `ADMIN_USERNAME` | `admin` | 默认管理员用户名，仅首次建库时写入。 |
-| `ADMIN_PASSWORD` | `admin123` | 默认管理员密码，仅首次建库时写入。 |
+| `ADMIN_PASSWORD` | 空 | 初始管理员密码；留空或弱口令时首次建库自动生成随机密码并打印一次。 |
 | `ADMIN_FORCE_SYNC` | `false` | 为 `true` 时每次启动都用环境变量覆盖已有管理员账号密码。 |
 | `PUBLIC_HOST` | 空 | 对外访问的服务器 IP 或域名；影响分享链接、OAuth 回调、CORS 与前端 API 地址推断。 |
 | `PUBLIC_SCHEME` | `http` | 对外协议；HTTPS 反向代理时设为 `https`。 |
@@ -128,6 +140,10 @@ docker compose -f docker-compose.deploy.yml up -d
 | --- | --- | --- |
 | `MAX_UPLOAD_SIZE` | `20971520`（20 MB） | 图片单文件上限（字节）。 |
 | `MAX_VIDEO_UPLOAD_SIZE` | `209715200`（200 MB） | 视频单文件上限（字节）。 |
+| `MAX_REQUEST_BODY_SIZE` | `536870912`（512 MB） | 单个 HTTP 请求体上限；在解析上传前即拒绝超大请求。 |
+| `PUBLIC_EXPORT_MAX_ITEMS` | `100` | 公开批量导出单次最多张数。 |
+| `PUBLIC_EXPORT_RATE_MAX` | `10` | 公开导出限流：窗口内最大次数。 |
+| `PUBLIC_EXPORT_RATE_WINDOW` | `60` | 公开导出限流窗口秒数。 |
 | `MEDIA_TOKEN_EXPIRE_MINUTES` | `30` | 后台媒体预览签名 `media_token` 有效期。 |
 | `FOLDER_TOKEN_EXPIRE_MINUTES` | `120` | 分类解锁 `folder_token` 有效期。 |
 | `TRUSTED_PROXIES` | 空 | 可信反向代理 IP/CIDR，逗号分隔；例如 `127.0.0.1,10.0.0.0/8`。 |
@@ -213,7 +229,7 @@ ImageLibrary/
 
 ## 升级与迁移
 
-> **从 1.x 升级到 2.0.0 前请先备份 `data/` 目录。**
+> **升级（含 2.0.1）前请先备份 `data/` 目录。**
 
 ```bash
 # 停止服务后备份
@@ -223,7 +239,8 @@ cp -r data data.bak
 启动时会自动执行迁移：
 
 - 空库：直接创建全部表、索引与默认设置。
-- 已存在业务表但无 `alembic_version` 的旧库：先 `stamp 0001`，再升级到最新 revision。
+- 已存在业务表但无 `alembic_version` 的旧库：清理迁移残留并补齐缺失表 → `stamp 0001` → 升级到最新 revision。
+- 已有 `alembic_version` 的库：清理 `_alembic_tmp_*` 残留并补齐意外缺失表后升级（迁移可安全重试）。
 - `0002`：增加分类密码字段、`images.uploaded_by` 改为 `ON DELETE SET NULL`、新增性能索引、扁平化历史文件夹、切换主题设置键。
 - `0003`：为早于「后台通知」功能的旧库补齐 `notifications` 表。
 
@@ -240,11 +257,19 @@ python -m alembic upgrade head
 - `/media`、`/thumbnails` 改为受控路由；非公开内容需要签名令牌。
 - 站点地址不能再通过通用站点设置接口写入，只能走专用地址弹窗流程。
 
+2.0.1 的升级注意：
+
+- 未设置 `SECRET_KEY` 的部署会生成 `data/.secret_key`，原有登录令牌失效，需要重新登录。
+- 全新部署若未设置 `ADMIN_PASSWORD`，随机初始密码只会在启动日志打印一次，请及时保存。
+- 若数据库中的管理员仍使用 `admin123` 等弱密码，启动日志会告警，请尽快在后台修改。
+
 若站点地址填错导致后台无法访问，可在服务器执行：
 
 ```bash
 python run.py clear-site-address
 ```
+
+> 若升级后后台页面提示 `Cannot read properties of null (reading 'addEventListener')` 或出现空白，通常是浏览器仍在使用旧版 `admin/js`。当前版本已为后台 HTML/CSS/JS 使用协商缓存并为静态资源增加版本参数；部署后请强制刷新一次（Windows：`Ctrl+F5`），后续升级会自动获取新脚本。
 
 ## 参与贡献
 
@@ -275,4 +300,6 @@ python run.py clear-site-address
 
 ## License
 
-当前仓库未包含 `LICENSE` 文件。若计划公开分发或商用，请先与维护者确认授权范围，并补充正式许可证文件。
+本项目采用 [MIT License](LICENSE)。
+
+Copyright (c) 2026 BUXIN

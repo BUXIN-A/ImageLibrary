@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.models import Folder, Image
 from backend.app.schemas import AdminImageOut
+from backend.app.security import get_secret_key
 
 MEDIA_SCOPE = "media_admin"
 FOLDER_SCOPE = "folder"
@@ -19,7 +20,7 @@ FOLDER_SCOPE = "folder"
 
 def _encode(payload: dict) -> str:
     """使用应用密钥签发 JWT。"""
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(payload, get_secret_key(), algorithm=settings.JWT_ALGORITHM)
 
 
 def _decode(token: Optional[str]) -> Optional[dict]:
@@ -29,7 +30,7 @@ def _decode(token: Optional[str]) -> Optional[dict]:
     try:
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            get_secret_key(),
             algorithms=[settings.JWT_ALGORITHM],
             options={"require": ["exp"]},
         )

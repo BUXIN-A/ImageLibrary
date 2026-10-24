@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
@@ -27,7 +27,7 @@ THEME_DESCRIPTIONS: dict[str, str] = {
     "base": "经典图库首页，沿用简洁的网格布局",
     "nav": "以导航入口为首页，提供分类与统计面板",
 }
-THEME_VERSION = "2.0.0"
+THEME_VERSION = "2.0.1"
 
 DEFAULT_PRESET_ID = "light"
 
@@ -567,7 +567,18 @@ def public_theme_payload(db: Session) -> dict:
 
 
 def nav_stats(db: Session) -> dict:
-    """导航主题首页统计（公开已通过且未删除口径，含加密分类图片）。"""
+    """导航主题首页统计（公开口径：排除加密分类，避免泄露受保护内容）。
+
+    - ``folders[].image_count``：加密分类为 ``None``（前端显示「—」）；
+    - 总图片/浏览/下载/评论：仅统计不属于加密分类的已通过未删除内容。
+    """
+    locked_ids = select(Folder.id).where(Folder.password_hash.isnot(None))
+    visible_scope = (
+        Image.status == "approved",
+        Image.is_deleted.is_(False),
+        or_(Image.folder_id.is_(None), Image.folder_id.notin_(locked_ids)),
+    )
+
     counts = dict(
         db.query(Image.folder_id, func.count(Image.id))
         .filter(
@@ -579,38 +590,35 @@ def nav_stats(db: Session) -> dict:
         .all()
     )
     folders = db.query(Folder).order_by(Folder.sort_order, Folder.name).all()
-    folder_items = [
-        {
-            "id": folder.id,
-            "name": folder.name,
-            "image_count": int(counts.get(folder.id, 0)),
-            "has_password": bool(folder.password_hash),
-        }
-        for folder in folders
-    ]
+    folder_items = []
+    for folder in folders:
+        locked = bool(folder.password_hash)
+        folder_items.append(
+            {
+                "id": folder.id,
+                "name": folder.name,
+                "image_count": None if locked else int(counts.get(folder.id, 0)),
+                "has_password": locked,
+            }
+        )
 
-    public_filter = (Image.status == "approved", Image.is_deleted.is_(False))
-    total_images = db.query(func.count(Image.id)).filter(*public_filter).scalar() or 0
+    total_images = db.query(func.count(Image.id)).filter(*visible_scope).scalar() or 0
     total_views = (
         db.query(func.coalesce(func.sum(Image.views), 0))
-        .filter(*public_filter)
+        .filter(*visible_scope)
         .scalar()
         or 0
     )
     total_downloads = (
         db.query(func.coalesce(func.sum(Image.downloads), 0))
-        .filter(*public_filter)
+        .filter(*visible_scope)
         .scalar()
         or 0
     )
     total_comments = (
         db.query(func.count(Comment.id))
         .join(Image, Comment.image_id == Image.id)
-        .filter(
-            Comment.status == "visible",
-            Image.status == "approved",
-            Image.is_deleted.is_(False),
-        )
+        .filter(Comment.status == "visible", *visible_scope)
         .scalar()
         or 0
     )

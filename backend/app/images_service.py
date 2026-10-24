@@ -160,7 +160,10 @@ def extract_exif(img) -> Optional[dict]:
 
 
 def _process_image_file(path: Path, filename: str, size: int) -> dict:
-    """校验磁盘上的图片文件并生成缩略图，返回元数据。"""
+    """校验磁盘上的图片文件并生成缩略图，返回元数据。
+
+    缩略图生成失败时不写入空文件，而是返回空 ``thumb_name``（前端显示占位）。
+    """
     thumb_name = f"{Path(filename).stem}_thumb.jpg"
     thumb_path = settings.THUMBNAIL_DIR / thumb_name
 
@@ -196,7 +199,9 @@ def _process_image_file(path: Path, filename: str, size: int) -> dict:
             thumb.thumbnail((settings.THUMBNAIL_SIZE, settings.THUMBNAIL_SIZE))
             thumb.save(thumb_path, format="JPEG", quality=85)
         except Exception:  # noqa: BLE001 - 缩略图失败不阻断原图落库
-            thumb_path.write_bytes(b"")
+            # 不写入空文件：清空名称让前端使用占位图
+            _unlink(thumb_path)
+            thumb_name = ""
 
         exif = extract_exif(img)
     except Exception:

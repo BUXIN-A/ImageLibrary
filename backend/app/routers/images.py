@@ -23,6 +23,7 @@ from backend.app.media_service import (
 )
 from backend.app.models import Folder, Image, Tag
 from backend.app.notify_service import CATEGORY_VISIT, LEVEL_INFO, log
+from backend.app.ratelimit import export_limiter
 from backend.app.schemas import ExportRequest, PageResponse, PublicImageOut
 from backend.app.seed import get_bool_setting
 
@@ -151,6 +152,7 @@ def list_images(
 
 @router.post("/images/export")
 def export_images(
+    request: Request,
     payload: ExportRequest = Body(...),
     folder_token: Optional[str] = Query(None),
     x_folder_token: Optional[str] = Header(None, alias="X-Folder-Token"),
@@ -159,6 +161,13 @@ def export_images(
     """公开批量导出：仅打包其中可公开访问的图片（加密分类需先解锁）。"""
     if not payload.ids:
         raise HTTPException(status_code=400, detail="未选择要导出的图片")
+    if len(payload.ids) > settings.PUBLIC_EXPORT_MAX_ITEMS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"单次最多导出 {settings.PUBLIC_EXPORT_MAX_ITEMS} 张图片",
+        )
+    if not export_limiter.allow(client_ip(request)):
+        raise HTTPException(status_code=429, detail="导出过于频繁，请稍后再试")
 
     query = _public_query(db).filter(Image.id.in_(payload.ids))
     query = _apply_public_scope(query, db, folder_token or x_folder_token)

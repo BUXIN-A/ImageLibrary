@@ -1,14 +1,14 @@
 /**
  * 回收站：列出已删除图片，支持还原与彻底删除（单条/批量）。
- * 说明：后端未提供「仅已删除」过滤，此处拉取包含已删除的列表后在前端筛选。
+ * 服务端通过 deleted_only=1 直接过滤并分页，避免拉取全部图片后在浏览器筛选。
  */
 (function () {
   "use strict";
 
   var PAGE_SIZE = 24;
   var state = {
-    all: [],
     items: [],
+    total: 0,
     page: 1,
     pages: 0,
     selected: new Set()
@@ -70,17 +70,13 @@
   }
 
   function renderPage() {
-    if (!state.all.length) {
+    if (!state.items.length) {
       els.list.innerHTML = UI.renderEmpty("回收站为空");
       els.pagination.innerHTML = "";
       els.selectedCount.textContent = "已选 0 张";
       els.selectAll.checked = false;
       return;
     }
-    state.pages = Math.ceil(state.all.length / PAGE_SIZE);
-    if (state.page > state.pages) state.page = state.pages || 1;
-    var start = (state.page - 1) * PAGE_SIZE;
-    state.items = state.all.slice(start, start + PAGE_SIZE);
 
     els.list.innerHTML = '<div class="image-grid">' + state.items.map(cardHtml).join("") + "</div>";
     state.items.forEach(function (image) {
@@ -94,7 +90,7 @@
 
     UI.renderPagination(els.pagination, { page: state.page, pages: state.pages }, function (p) {
       state.page = p;
-      renderPage();
+      load();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
@@ -102,21 +98,23 @@
   async function load() {
     els.list.innerHTML = '<div class="loading"><span class="spinner"></span>加载中…</div>';
     try {
-      var all = [];
-      var page = 1;
-      var pages = 1;
-      do {
-        var data = await API.get(
-          "/api/admin/images?page=" + page + "&page_size=200&include_deleted=1&sort=latest"
-        );
-        all = all.concat((data && data.items) || []);
-        pages = (data && data.pages) || 1;
-        page += 1;
-      } while (page <= pages);
-
-      state.all = all.filter(function (image) { return image.is_deleted; });
+      // 服务端直接用 deleted_only 过滤，避免拉取全部图片后在浏览器筛选
+      var data = await API.get(
+        "/api/admin/images?page=" + state.page + "&page_size=" + PAGE_SIZE +
+        "&deleted_only=1&sort=latest"
+      );
+      state.items = (data && data.items) || [];
+      state.pages = (data && data.pages) || 0;
+      state.total = (data && data.total) || 0;
       state.selected.clear();
-      state.page = 1;
+      if (state.total === 0) {
+        els.list.innerHTML = UI.renderEmpty("回收站为空");
+        els.pagination.innerHTML = "";
+        els.selectedCount.textContent = "已选 0 张";
+        els.selectAll.checked = false;
+        return;
+      }
+      if (state.page > state.pages) state.page = state.pages || 1;
       renderPage();
     } catch (err) {
       els.list.innerHTML = UI.renderEmpty(err.message || "加载失败");

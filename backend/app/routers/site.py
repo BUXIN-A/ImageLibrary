@@ -47,8 +47,8 @@ _ADDRESS_TARGETS = {
     "admin": "admin_api_base_url",
     "frontend": "frontend_base_url",
 }
-# 站点地址格式：http(s)://主机[:端口]，不允许路径
-_ADDRESS_RE = re.compile(r"^https?://[^\s/]+(:\d+)?$")
+# 站点地址格式：http(s)://主机[:端口]，不允许路径、用户信息与查询串
+_ADDRESS_RE = re.compile(r"^https?://[^\s/@]+(:\d+)?$")
 
 
 def favicon_file_path() -> Optional[Path]:
@@ -71,6 +71,9 @@ def _site_public(db: Session, request: Optional[Request] = None) -> dict:
         "sitemap_enabled": get_bool_setting(db, "sitemap_enabled", True),
         "comments_enabled": get_bool_setting(db, "comments_enabled", True),
         "footer_text": get_setting(db, "footer_text", ""),
+        "upload_max_size": get_int_setting(
+            db, "upload_max_size", settings.MAX_UPLOAD_SIZE
+        ),
         "max_video_size": get_int_setting(
             db, "upload_max_video_size", settings.MAX_VIDEO_UPLOAD_SIZE
         ),

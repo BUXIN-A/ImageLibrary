@@ -6,12 +6,27 @@
     return new URLSearchParams(window.location.search);
   }
 
-  /** 仅允许站内相对地址，防止开放重定向。 */
+  /**
+   * 仅允许同源、http(s) 的站内地址，防止开放重定向与 javascript: 伪协议。
+   * 返回可直接用于 location.replace 的绝对路径（pathname + search + hash）。
+   */
   function safeRedirect(target) {
     var t = String(target || '').trim();
     if (!t) return 'index.html';
-    if (/^https?:\/\//i.test(t) || t.indexOf('//') === 0 || t.charAt(0) === '\\') return 'index.html';
-    return t;
+    // 统一反斜杠，避免 /\evil.com 之类的变体绕过
+    t = t.replace(/\\/g, '/');
+    if (/^(?:javascript|data|vbscript|blob|file):/i.test(t)) return 'index.html';
+    var url;
+    try {
+      url = new URL(t, window.location.origin + window.location.pathname);
+    } catch (e) {
+      return 'index.html';
+    }
+    if (url.origin !== window.location.origin) return 'index.html';
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'index.html';
+    // 避免跳回登录页自身造成循环
+    if (url.pathname.slice(-'login.html'.length) === 'login.html') return 'index.html';
+    return url.pathname + url.search + url.hash;
   }
 
   function redirectTarget() {
@@ -177,24 +192,48 @@
     }
   }
 
+  /** 清除地址栏中的敏感参数（一次性登录码、错误信息），避免进入历史与 Referer。 */
+  function cleanUrl() {
+    try {
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch (e) { /* ignore */ }
+  }
+
+  /** OAuth 回调：用一次性登录码换取令牌（JWT 不再出现在 URL 中）。 */
+  async function handleOAuthCode(code) {
+    cleanUrl();
+    try {
+      var data = await API.postJSON('/api/auth/oauth/exchange', { code: code });
+      if (!data || !data.access_token) throw new Error('登录失败，请重试');
+      UserSession.setToken(data.access_token);
+      UI.toast('登录成功', 'success');
+      var target = redirectTarget();
+      setTimeout(function () { window.location.replace(target); }, 400);
+    } catch (e) {
+      showMessage((e && e.message) || '第三方登录失败，请重试', 'error');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', async function () {
     await Layout.init('');
 
     var params = getParams();
 
-    // OAuth 回调：URL 带 token，写入令牌后跳转
-    var oauthToken = params.get('token');
-    if (oauthToken) {
-      UserSession.setToken(oauthToken);
-      UI.toast('登录成功', 'success');
-      var target = redirectTarget();
-      setTimeout(function () { window.location.replace(target); }, 400);
+    // OAuth 回调：一次性登录码换取令牌
+    var oauthCode = params.get('oauth_code');
+    if (oauthCode) {
+      await handleOAuthCode(oauthCode);
       return;
     }
+    // 兼容旧链接里残留的 token 参数：直接丢弃，避免会话固定
+    if (params.get('token')) cleanUrl();
 
     // OAuth 回调错误
     var err = params.get('error');
-    if (err) showMessage(readableError(err), 'error');
+    if (err) {
+      showMessage(readableError(err), 'error');
+      cleanUrl();
+    }
 
     // 已登录直接跳转
     if (currentLoggedIn()) {

@@ -87,11 +87,40 @@ def _current_revision() -> tuple[bool, str | None]:
     return True, (row[0] if row else None)
 
 
+def _drop_leftover_batch_tables() -> None:
+    """清理上一次迁移失败残留的 ``_alembic_tmp_*`` 临时表（仅 SQLite）。"""
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name LIKE '_alembic_tmp_%'"
+            )
+        ).fetchall()
+        for (name,) in rows:
+            conn.execute(text(f'DROP TABLE IF EXISTS "{name}"'))
+
+
+def _create_missing_tables() -> None:
+    """为旧库补齐缺失的表（只创建不存在的表，不修改已有表结构）。
+
+    早期版本的数据库可能缺少后来新增的表（如 ``comments``、``notifications``），
+    直接 stamp 基线再升级会因缺表失败，因此先按当前模型补建缺失表。
+    """
+    from backend.app import models  # noqa: F401 - 导入以注册所有模型
+
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+
+
 def run_migrations() -> None:
     """执行数据库迁移到最新 revision。
 
     - 空库：直接 upgrade 到 head（创建全部表与默认数据）。
-    - 已有业务表的旧库（无 alembic_version）：先 stamp 基线，再 upgrade。
+    - 已有业务表但无 alembic_version 的旧库：清理迁移残留 -> 补建缺失表
+      -> stamp 基线 -> upgrade。
+    - 已有 alembic_version 的库：清理残留临时表并补建缺失表后 upgrade
+      （兼容此前迁移失败/异常中断留下的半成品库）。
     - 迁移失败会抛出异常，阻止服务带病启动。
     """
     settings.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -101,8 +130,14 @@ def run_migrations() -> None:
     tables = set(inspector.get_table_names())
     has_version_table, current_revision = _current_revision()
 
-    if (not has_version_table or current_revision is None) and tables & _BUSINESS_TABLES:
-        # 旧库：结构等同于基线，先标记为 0001 再执行增量迁移
+    if has_version_table and current_revision is not None:
+        # 已纳入 Alembic 管理：清理失败残留并补齐意外缺失的表（幂等）
+        _drop_leftover_batch_tables()
+        _create_missing_tables()
+    elif tables & _BUSINESS_TABLES:
+        # 旧库（无版本记录）：结构视为基线，先补齐缺失表再打基线标记
+        _drop_leftover_batch_tables()
+        _create_missing_tables()
         command.stamp(config, BASE_REVISION)
 
     command.upgrade(config, "head")

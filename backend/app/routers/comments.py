@@ -82,6 +82,10 @@ def _serialize_admin(comment: Comment, frontend_base: str) -> dict:
         if image is not None and frontend_base
         else None
     )
+    # 视频没有缩略图，避免拼接出空的 /thumbnails/ 路径
+    thumb_url = ""
+    if image is not None and image.thumb_name:
+        thumb_url = f"/thumbnails/{image.thumb_name}"
     return {
         "id": comment.id,
         "content": comment.content,
@@ -92,7 +96,7 @@ def _serialize_admin(comment: Comment, frontend_base: str) -> dict:
             "id": image.id if image else 0,
             "title": image.title if image else None,
             "filename": image.filename if image else "",
-            "thumb_url": f"/thumbnails/{image.thumb_name}" if image else "",
+            "thumb_url": thumb_url,
             "frontend_url": frontend_url,
             "media_token": create_admin_media_token(image.id) if image else None,
         },

@@ -63,9 +63,15 @@
         UI.lockIcon(13) + '</span>';
     }
     html += '</span>';
-    if (showCounts && typeof card.count === 'number') {
-      html += '<span class="nav-folder__meta">' +
-        '<span class="nav-folder__count">' + toCount(card.count) + ' 张</span></span>';
+    if (showCounts) {
+      if (typeof card.count === 'number') {
+        html += '<span class="nav-folder__meta">' +
+          '<span class="nav-folder__count">' + toCount(card.count) + ' 张</span></span>';
+      } else if (card.locked) {
+        // 加密分类不公开图片数量（避免泄露受保护内容规模）
+        html += '<span class="nav-folder__meta">' +
+          '<span class="nav-folder__count">—</span></span>';
+      }
     }
     html += '</a>';
     return html;
@@ -109,7 +115,8 @@
         href: 'folder.html?id=' + encodeURIComponent(folder.id),
         name: folder.name || ('分类 #' + folder.id),
         locked: !!folder.has_password,
-        count: typeof folder.image_count === 'number' ? folder.image_count : 0
+        // 加密分类的 image_count 为 null：显示「—」而不是 0
+        count: typeof folder.image_count === 'number' ? folder.image_count : null
       });
     });
 

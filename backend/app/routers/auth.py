@@ -62,10 +62,22 @@ def change_password(
     db: Session = Depends(get_db),
 ) -> dict:
     """修改密码：校验旧密码后更新为新密码哈希。"""
-    if not verify_password(payload.old_password, admin.password_hash):
+    new_password = payload.new_password or ""
+    # bcrypt 仅使用前 72 字节，超过部分无效；空密码会导致账号永久无法登录
+    if len(new_password) < 8 or len(new_password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码长度需为 8-72 字节",
+        )
+    if verify_password(payload.old_password, admin.password_hash):
+        if new_password == payload.old_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与原密码相同"
+            )
+    else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="原密码错误")
 
-    admin.password_hash = hash_password(payload.new_password)
+    admin.password_hash = hash_password(new_password)
     db.add(admin)
     db.commit()
     return {"ok": True}

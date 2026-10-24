@@ -23,8 +23,8 @@ from backend.app.models import Image
 router = APIRouter(tags=["media"])
 
 _CHUNK_SIZE = 64 * 1024
-_CACHE_PUBLIC = "public, max-age=300"
-_CACHE_PRIVATE = "private, max-age=300"
+_CACHE_PUBLIC = "public, max-age=60"
+_CACHE_PRIVATE = "private, max-age=60"
 
 
 def _not_found() -> HTTPException:

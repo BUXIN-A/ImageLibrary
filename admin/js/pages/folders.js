@@ -151,13 +151,16 @@
   }
 
   async function deleteFolder(folder) {
-    var yes = await UI.confirmDialog(
-      "确定删除分类「" + folder.name + "」吗？该分类下的图片将变为未分类。",
-      "删除"
-    );
+    var message = "确定删除分类「" + folder.name + "」吗？该分类下的图片将变为未分类。";
+    if (folder.has_password) {
+      message = "分类「" + folder.name + "」已设置访问密码：删除后其图片会变为未分类并公开访问，" +
+        "确定继续吗？该操作不可恢复。";
+    }
+    var yes = await UI.confirmDialog(message, "删除");
     if (!yes) return;
     try {
-      await API.del("/api/admin/folders/" + folder.id);
+      var path = "/api/admin/folders/" + folder.id + (folder.has_password ? "?force=true" : "");
+      await API.del(path);
       UI.toast("已删除分类", "success");
       load();
     } catch (err) {

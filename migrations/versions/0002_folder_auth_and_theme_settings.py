@@ -65,9 +65,45 @@ def _index_names(bind, table: str) -> set[str]:
     return {item["name"] for item in sa.inspect(bind).get_indexes(table)}
 
 
+def _column_names(bind, table: str) -> set[str]:
+    """返回指定表已存在的列名集合（表不存在时返回空集合）。"""
+    inspector = sa.inspect(bind)
+    if table not in inspector.get_table_names():
+        return set()
+    return {item["name"] for item in inspector.get_columns(table)}
+
+
+def _drop_leftover_tmp_tables(bind) -> None:
+    """清理上一次迁移失败残留的 ``_alembic_tmp_*`` 临时表（仅 SQLite）。"""
+    if bind.dialect.name != "sqlite":
+        return
+    rows = bind.execute(
+        sa.text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp_%'"
+        )
+    ).fetchall()
+    for (name,) in rows:
+        bind.execute(sa.text(f'DROP TABLE IF EXISTS "{name}"'))
+
+
+def _uploaded_by_ondelete(bind) -> str:
+    """读取 ``images.uploaded_by`` 外键当前的 ondelete 行为（表或外键缺失时返回空串）。"""
+    inspector = sa.inspect(bind)
+    if "images" not in inspector.get_table_names():
+        return ""
+    for fk in inspector.get_foreign_keys("images"):
+        if fk.get("constrained_columns") == ["uploaded_by"]:
+            options = fk.get("options") or {}
+            return str(options.get("ondelete") or "").upper()
+    return ""
+
+
 def _create_index_if_missing(bind, table: str, name: str, columns: list[str]) -> None:
-    """若索引不存在则创建（保证迁移幂等）。"""
-    if name in _index_names(bind, table):
+    """若索引不存在则创建（表缺失时跳过，保证迁移幂等）。"""
+    inspector = sa.inspect(bind)
+    if table not in inspector.get_table_names():
+        return
+    if name in {item["name"] for item in inspector.get_indexes(table)}:
         return
     op.create_index(name, table, columns, unique=False)
 
@@ -180,20 +216,27 @@ def _migrate_settings(bind) -> None:
 def upgrade() -> None:
     bind = op.get_bind()
 
-    # 1) folders：分类密码相关字段
-    with op.batch_alter_table("folders", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("password_hash", sa.String(length=255), nullable=True))
-        batch_op.add_column(
-            sa.Column(
-                "auth_version",
-                sa.Integer(),
-                nullable=False,
-                server_default="0",
-            )
-        )
+    # 0) 清理上次失败残留的临时表，确保可以安全重试
+    _drop_leftover_tmp_tables(bind)
 
-    # 2) images：uploaded_by 外键改为 ON DELETE SET NULL（保留数据与已有索引）
-    _rebuild_images(bind, ondelete_uploaded_by="SET NULL")
+    # 1) folders：分类密码相关字段（已存在时跳过，保证可重试）
+    existing_columns = _column_names(bind, "folders")
+    with op.batch_alter_table("folders", schema=None) as batch_op:
+        if "password_hash" not in existing_columns:
+            batch_op.add_column(sa.Column("password_hash", sa.String(length=255), nullable=True))
+        if "auth_version" not in existing_columns:
+            batch_op.add_column(
+                sa.Column(
+                    "auth_version",
+                    sa.Integer(),
+                    nullable=False,
+                    server_default="0",
+                )
+            )
+
+    # 2) images：uploaded_by 外键改为 ON DELETE SET NULL（已是目标状态则跳过）
+    if _uploaded_by_ondelete(bind) != "SET NULL":
+        _rebuild_images(bind, ondelete_uploaded_by="SET NULL")
 
     # 3) 性能索引（不存在时创建）
     _create_index_if_missing(bind, "images", "ix_images_folder_id", ["folder_id"])

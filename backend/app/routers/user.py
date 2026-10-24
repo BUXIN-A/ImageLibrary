@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """普通用户路由：注册、登录与获取当前用户信息。"""
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
@@ -24,6 +25,12 @@ _USERNAME_MAX = 32
 _PASSWORD_MIN = 6
 
 
+def _ensure_local_login_enabled(db: Session) -> None:
+    """本地账号登录关闭时拒绝登录/注册（后台开关需要在接口层真正生效）。"""
+    if not get_bool_setting(db, "login_local_enabled", True):
+        raise HTTPException(status_code=403, detail="本地账号登录已关闭，请使用其它登录方式")
+
+
 def _auth_response(user: User) -> UserAuthResponse:
     """构造注册/登录成功响应（含用户令牌与用户信息）。"""
     token = create_access_token(user.username, role="user")
@@ -38,6 +45,7 @@ def _auth_response(user: User) -> UserAuthResponse:
 @router.post("/register", response_model=UserAuthResponse)
 def register(payload: UserRegisterRequest, db: Session = Depends(get_db)) -> UserAuthResponse:
     """用户注册：校验用户名/密码长度与唯一性，成功后直接签发用户令牌。"""
+    _ensure_local_login_enabled(db)
     username = (payload.username or "").strip()
     password = payload.password or ""
     email = (payload.email or "").strip() or None
@@ -60,7 +68,12 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)) -> Use
         provider="local",
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 并发注册同名用户时唯一约束兜底
+        db.rollback()
+        raise HTTPException(status_code=409, detail="用户名或邮箱已被使用")
     db.refresh(user)
     return _auth_response(user)
 
@@ -70,6 +83,7 @@ def login(
     payload: UserLoginRequest, request: Request, db: Session = Depends(get_db)
 ) -> UserAuthResponse:
     """用户登录：校验存在、密码与启用状态，成功后更新最后登录时间。"""
+    _ensure_local_login_enabled(db)
     user = db.query(User).filter(User.username == payload.username).first()
     log_visit = get_bool_setting(db, "visit_log_enabled", True)
     if (

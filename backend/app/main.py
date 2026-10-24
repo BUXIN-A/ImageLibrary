@@ -5,11 +5,12 @@ import threading
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from starlette.middleware.gzip import GZipMiddleware
 
 from backend.app.config import settings
 from backend.app.database import SessionLocal
 from backend.app.deps import client_ip
+from backend.app.http_middleware import BodySizeLimitMiddleware, SelectiveGZipMiddleware
+from backend.app.models import Admin
 from backend.app.notify_service import (
     CATEGORY_ERROR,
     CATEGORY_SITE,
@@ -42,6 +43,7 @@ from backend.app.routers import (
     user,
 )
 from backend.app.seed import init_seed
+from backend.app.security import secret_key_was_generated, verify_password
 from backend.app.site_monitor import run_startup_check
 from backend.app.theme_settings_service import ensure_theme_state
 from backend.app.version import __version__
@@ -51,7 +53,10 @@ settings.ensure_dirs()
 
 app = FastAPI(title="ImageLibrary API", version=__version__)
 
-# 允许前台(8000)与后台(8001)跨域访问
+# 中间件顺序：后添加的更靠外层。GZip（选择性）→ 请求体限制 → CORS（最外层，
+# 保证 413 等提前返回的响应也带上跨域头）。
+app.add_middleware(SelectiveGZipMiddleware, minimum_size=500)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.MAX_REQUEST_BODY_SIZE)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins(),
@@ -60,9 +65,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 压缩 JSON/文本响应（大于 500 字节时），降低传输体积
-app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 def _startup_site_check() -> None:
@@ -73,6 +75,46 @@ def _startup_site_check() -> None:
         record(LEVEL_WARNING, CATEGORY_SITE, "启动站点地址自检失败", detail=str(exc))
 
 
+# 启动时检测的弱口令候选（仅用于提示，不会自动修改已有密码）
+_WEAK_ADMIN_CANDIDATES = ("admin123", "admin", "123456", "password")
+
+
+def _warn_security_defaults(db) -> None:
+    """启动时提示自动生成的签名密钥与仍在使用的弱管理员密码。"""
+    try:
+        if secret_key_was_generated():
+            print(
+                "\n" + "=" * 56 + "\n"
+                " 未配置 SECRET_KEY，已自动生成随机密钥并保存到 data/.secret_key\n"
+                " 如需固定密钥，请在 .env 中设置 SECRET_KEY（建议 >= 32 字节随机串）\n"
+                + "=" * 56 + "\n",
+                flush=True,
+            )
+    except Exception:  # noqa: BLE001 - 提示失败不影响启动
+        pass
+
+    try:
+        admin = db.query(Admin).order_by(Admin.id).first()
+        if admin is None:
+            return
+        for candidate in _WEAK_ADMIN_CANDIDATES:
+            if verify_password(candidate, admin.password_hash):
+                log(
+                    db,
+                    LEVEL_WARNING,
+                    CATEGORY_STARTUP,
+                    "管理员仍在使用弱密码，请尽快修改",
+                    detail=f"用户名：{admin.username}",
+                )
+                print(
+                    "\n警告：管理员账号仍在使用弱密码，请登录后台「账号与安全」立即修改。\n",
+                    flush=True,
+                )
+                break
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @app.on_event("startup")
 def _on_startup() -> None:
     """启动时初始化数据，记录服务启动并异步执行站点地址自检。"""
@@ -81,6 +123,7 @@ def _on_startup() -> None:
         db = SessionLocal()
         try:
             ensure_theme_state(db)
+            _warn_security_defaults(db)
             log(db, LEVEL_INFO, CATEGORY_STARTUP, f"服务启动（v{__version__}）")
         finally:
             db.close()

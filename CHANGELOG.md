@@ -6,6 +6,60 @@
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-25
+
+安全加固与健壮性版本：修复代码审查发现的全部可证实问题，并补上配置/迁移的防御性处理。
+
+### Added
+
+- **自动生成签名密钥**：未配置 `SECRET_KEY`（或仍为示例值）时，启动会生成随机密钥并持久化到 `data/.secret_key`，避免使用公开默认密钥；启动日志会提示。
+- **随机初始管理员密码**：`ADMIN_PASSWORD` 留空或为弱口令时，首次建库会生成随机密码并在控制台打印一次（不写入数据库/通知）；已有管理员仍使用弱密码时启动会告警。
+- **请求体大小限制**：新增 `MAX_REQUEST_BODY_SIZE`（默认 512 MB），在解析 multipart 之前按 `Content-Length` 快速拒绝，并在流式读取时兜底返回 413。
+- **公开导出限制**：新增 `PUBLIC_EXPORT_MAX_ITEMS`（默认 100）与按 IP 的导出限流（默认 60 秒 10 次）。
+- **OAuth 一次性登录码**：新增 `POST /api/auth/oauth/exchange`，登录成功后先签发一次性 code，再由前端换取令牌，JWT 不再出现在跳转 URL。
+- **回收站服务端过滤**：`GET /api/admin/images` 新增 `deleted_only=1`，回收站不再拉取全部图片后在浏览器筛选。
+
+### Changed
+
+- **OAuth state 绑定 Cookie**：授权跳转时写入 HttpOnly `il_oauth_state` Cookie，回调需与服务端 state 一致，防止登录 CSRF/账号固定。
+- **媒体不再 GZip 压缩**：`/media`、`/thumbnails`、`*/download` 与带 `Range` 的请求跳过压缩，修复 `206` 响应丢失 `Content-Length`、与 `Content-Range` 冲突的问题。
+- **分类数量与统计口径统一**：`/api/folders` 对加密分类返回 `image_count=null`；`/api/tags`、`/api/theme/nav-stats` 均排除加密分类，避免泄露受保护内容规模。
+- **删除加密分类需强制确认**：`DELETE /api/admin/folders/{id}` 对设置了密码的分类默认返回 400，必须显式 `force=true`；后台确认框同步提示图片将公开。
+- **站点自检不再清空配置**：启动自检只告警，站点地址仅能在后台手动清除；探测禁止跟随重定向。
+- **媒体缓存**：公开/私有媒体 `Cache-Control` 由 300 秒调整为 60 秒，降低内容移入加密分类后的短期缓存风险。
+- **后台静态资源**：后台 HTML/CSS/JS 统一 `no-cache` 协商缓存，并在引用中增加版本参数，避免升级后执行旧脚本。
+- **主题页文案**：导航统计开关说明改为「最多 1 分钟内更新」，与 `config.js` 的 60 秒缓存一致。
+
+### Fixed
+
+1. 修复管理员仍可使用默认弱密码、默认 `SECRET_KEY` 可伪造管理员令牌的问题。
+2. 修复登录 `redirect` 参数可被 `https:/evil.com`、`/\evil.com`、`javascript:` 绕过的问题，改为同源 URL 校验。
+3. 修复 OAuth 登录令牌出现在 URL、前端未校验即落盘导致的会话固定风险。
+4. 修复媒体 `Range` 响应被 GZip 破坏的问题。
+5. 修复未授权/超大上传请求可打满磁盘的问题（请求体上限）。
+6. 修复旧库迁移失败后无法自愈的问题：迁移前清理 `_alembic_tmp_*`、补齐缺失表，`0002` 改为幂等可重试。
+7. 修复后台关闭「本地账号登录」后 `/api/user/login`、`/api/user/register` 仍可调用的问题。
+8. 修复删除加密分类会让图片静默公开的问题。
+9. 修复公开统计/标签泄露加密分类数量与标签的问题。
+10. 修复回收站需拉取全部图片、打开缓慢的问题。
+11. 修复视频评论在后台评论管理显示破图的问题（`thumb_url` 为空时返回空串）。
+12. 修复 `/api/site` 缺少 `upload_max_size` 导致上传页不显示图片大小上限的问题。
+13. 修复 IPv6 直连时 `config.js`/分享链接生成非法地址的问题。
+14. 修复 `PUT /api/admin/settings` 静默忽略未知字段、`PATCH` 可写入非法 `status` 的问题。
+15. 修复修改密码未校验长度、可设置空密码导致管理员永久无法登录的问题。
+16. 修复缩略图生成失败写入 0 字节 JPEG、前端显示破图的问题。
+17. 修复后台顶栏重复渲染导致 `themechange`/侧边栏监听器累积的问题，以及后台重复请求 `/api/settings` 的问题。
+18. 修复上传页点击上传区可能因 click 冒泡递归的问题（补充 `e.target === fileInput` 保护）。
+19. 修复上传部分失败后所有文件被清空、无法重试的问题。
+20. 修复后台分页缺少页码范围校验、空结果残留统计与全选状态的问题。
+
+### Upgrade Notes
+
+- 升级前请备份 `data/`。
+- 若此前未设置 `SECRET_KEY`：升级后会自动生成并写入 `data/.secret_key`，原有登录令牌失效，需要重新登录。
+- 若数据库中的管理员仍使用 `admin123` 等弱密码，启动日志会给出告警，请尽快在后台修改。
+- 未设置 `ADMIN_PASSWORD` 的全新部署会打印随机初始密码，请从容器日志中获取。
+
 ## [2.0.0] - 2026-10-24
 
 ### Added
@@ -79,6 +133,7 @@
 6. 修复无条件信任 `X-Forwarded-For` 的问题（仅在可信代理下解析，并从右向左取首个非可信地址；协议头同样受限）。
 7. 修复后台评论管理图片链接硬编码 `127.0.0.1:8000` 的问题（后端返回 `frontend_url`）。
 8. 修复设置不存在的 `folder_id` 触发 500 的问题（图片编辑、批量移动返回 400/404；上传时将不存在的分类归为未分类）。
+9. 修复升级后后台「主题设置」页因浏览器缓存旧版 `themes.js` 而报 `Cannot read properties of null (reading 'addEventListener')` 的问题：后台 HTML/CSS/JS 统一使用协商缓存，静态资源引用增加版本参数。
 
 ### Removed
 
@@ -178,7 +233,8 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.0...v1.2.1

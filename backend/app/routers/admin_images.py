@@ -64,10 +64,13 @@ def _build_query(
     tag: Optional[str],
     status: Optional[str],
     include_deleted: bool,
+    deleted_only: bool = False,
 ):
     """构造后台图片查询（可按关键词、文件夹、标签、状态与删除标记过滤）。"""
     query = db.query(Image)
-    if not include_deleted:
+    if deleted_only:
+        query = query.filter(Image.is_deleted.is_(True))
+    elif not include_deleted:
         query = query.filter(Image.is_deleted.is_(False))
     if status:
         query = query.filter(Image.status == status)
@@ -105,11 +108,14 @@ def list_images(
     tag: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     include_deleted: int = Query(0),
+    deleted_only: int = Query(0),
     sort: str = Query("latest"),
     db: Session = Depends(get_db),
 ) -> PageResponse[AdminImageOut]:
-    """后台图片分页列表（默认不含回收站）。"""
-    query = _build_query(db, q, folder_id, tag, status, include_deleted == 1)
+    """后台图片分页列表（默认不含回收站；``deleted_only=1`` 仅返回回收站内容）。"""
+    query = _build_query(
+        db, q, folder_id, tag, status, include_deleted == 1, deleted_only == 1
+    )
     query = _apply_sort(query, sort)
     total = query.count()
     items = (

@@ -28,6 +28,11 @@ _STATE_TTL = 300
 _state_store: dict[str, float] = {}
 _state_lock = threading.Lock()
 
+# 一次性登录码：有效期（秒）与内存存储（避免把 JWT 放在跳转 URL 中）
+_LOGIN_CODE_TTL = 120
+_login_code_store: dict[str, tuple[str, float]] = {}
+_login_code_lock = threading.Lock()
+
 
 def _cfg(key: str, default: str = "") -> str:
     """从设置表读取配置项（缺失时返回 default）。"""
@@ -74,6 +79,36 @@ def verify_state(state: str) -> bool:
     with _state_lock:
         ts = _state_store.pop(state, None)
     return ts is not None and (now_ts - ts) <= _STATE_TTL
+
+
+# ---------------- 一次性登录码 ----------------
+def issue_login_code(username: str) -> str:
+    """为已通过第三方认证的用户签发一次性登录码（替代把 JWT 放进 URL）。"""
+    code = secrets.token_urlsafe(32)
+    now_ts = time.monotonic()
+    with _login_code_lock:
+        expired = [
+            key for key, (_, ts) in _login_code_store.items() if now_ts - ts > _LOGIN_CODE_TTL
+        ]
+        for key in expired:
+            _login_code_store.pop(key, None)
+        _login_code_store[code] = (username, now_ts)
+    return code
+
+
+def consume_login_code(code: str) -> Optional[str]:
+    """消费一次性登录码，返回用户名；无效或过期返回 None。"""
+    if not code:
+        return None
+    now_ts = time.monotonic()
+    with _login_code_lock:
+        item = _login_code_store.pop(code, None)
+    if item is None:
+        return None
+    username, ts = item
+    if now_ts - ts > _LOGIN_CODE_TTL:
+        return None
+    return username
 
 
 # ---------------- HTTP 辅助 ----------------

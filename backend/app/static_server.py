@@ -260,6 +260,23 @@ class ThemeDispatcher:
         await self._app_for(directory)(scope, receive, send)
 
 
+class AdminStaticFiles(StaticFiles):
+    """后台静态文件响应。
+
+    后台 HTML/CSS/JS 必须及时更新（避免旧版页面脚本与新接口不匹配），
+    因此统一使用 ``no-cache`` 触发协商缓存；图片等二进制资源仍可长缓存。
+    """
+
+    async def get_response(self, path: str, scope: Scope):
+        response = await super().get_response(path, scope)
+        suffix = Path(path).suffix.lower()
+        if suffix in {"", ".html", ".htm", ".js", ".css"}:
+            response.headers["Cache-Control"] = "no-cache"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 def create_static_app(
     directory: str, site_routes: bool = False, admin_config: bool = False
 ) -> FastAPI:
@@ -276,7 +293,7 @@ def create_static_app(
     _register_config_route(app, admin_config=admin_config)
     if site_routes:
         _register_site_routes(app)
-    app.mount("/", StaticFiles(directory=directory, html=True), name="static")
+    app.mount("/", AdminStaticFiles(directory=directory, html=True), name="static")
     return app
 
 

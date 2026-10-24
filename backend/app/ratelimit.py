@@ -52,3 +52,9 @@ upload_limiter = SlidingWindowLimiter()
 
 # 模块级单例：分类密码尝试限流（5 分钟内最多 10 次）
 folder_unlock_limiter = SlidingWindowLimiter(window_seconds=300, max_requests=10)
+
+# 模块级单例：公开批量导出限流（按 IP，避免匿名反复打包全库）
+export_limiter = SlidingWindowLimiter(
+    window_seconds=settings.PUBLIC_EXPORT_RATE_WINDOW,
+    max_requests=settings.PUBLIC_EXPORT_RATE_MAX,
+)

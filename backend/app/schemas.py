@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Pydantic v2 数据模型（请求 / 响应）。"""
 from datetime import datetime
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -67,7 +67,8 @@ class FolderOut(BaseModel):
     parent_id: Optional[int] = None
     path: str
     sort_order: int = 0
-    image_count: int = 0
+    # 加密分类在未解锁时为 None（不泄露受保护内容规模）
+    image_count: Optional[int] = None
     has_password: bool = False
     children: list["FolderOut"] = Field(default_factory=list)
 
@@ -259,7 +260,7 @@ class ImageUpdate(BaseModel):
     description: Optional[str] = None
     folder_id: Optional[int] = None
     tags: Optional[list[str]] = None
-    status: Optional[str] = None
+    status: Optional[Literal["pending", "approved", "rejected"]] = None
 
 
 class BatchImagesRequest(BaseModel):
@@ -306,7 +307,12 @@ class ReviewRejectRequest(BaseModel):
 
 # ---------------- 站点设置 / 统计 ----------------
 class SettingsUpdate(BaseModel):
-    """更新站点设置请求（主题配置已迁移至主题设置接口）。"""
+    """更新站点设置请求（主题配置已迁移至主题设置接口）。
+
+    只允许显式声明过的字段，未知字段直接返回 422，避免「保存成功但未生效」。
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     site_name: Optional[str] = None
 
@@ -354,6 +360,12 @@ class UserLoginRequest(BaseModel):
 
     username: str
     password: str
+
+
+class OAuthExchangeRequest(BaseModel):
+    """OAuth 一次性登录码换取令牌请求。"""
+
+    code: str
 
 
 class UserAuthResponse(BaseModel):

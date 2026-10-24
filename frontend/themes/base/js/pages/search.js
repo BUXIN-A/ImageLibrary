@@ -46,7 +46,7 @@
         var opt = document.createElement('option');
         opt.value = folder.id;
         opt.textContent = (folder.has_password ? '🔒 ' : '') + folder.name +
-          '（' + (folder.image_count || 0) + '）';
+          '（' + (typeof folder.image_count === 'number' ? folder.image_count : '—') + '）';
         folderSelect.appendChild(opt);
       });
       folderSelect.value = state.folderId;

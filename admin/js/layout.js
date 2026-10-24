@@ -95,7 +95,10 @@
    */
   async function loadSiteMeta() {
     try {
-      var data = await API.get("/api/settings");
+      // 复用 Theme 的共享请求，避免每个页面重复请求 /api/settings
+      var data = window.Theme && Theme.loadSettings
+        ? await Theme.loadSettings()
+        : await API.get("/api/settings");
       var favicon = data && data.favicon;
       if (favicon) {
         var href = /^https?:\/\//i.test(favicon) ? favicon : API_BASE + favicon;
@@ -113,6 +116,29 @@
         safeSidebar(currentActive);
       }
     } catch (err) { /* 静默：站点元信息获取失败不影响布局 */ }
+  }
+
+  // 全局监听只绑定一次：避免顶栏多次重渲染导致监听器叠加
+  var globalListenersBound = false;
+
+  function bindGlobalListeners() {
+    if (globalListenersBound) return;
+    globalListenersBound = true;
+
+    // 主题变化时同步下拉框（顶栏可能已重建，按当前 DOM 重新查找）
+    document.addEventListener("themechange", function (e) {
+      var select = document.getElementById("theme-select");
+      if (select && e && e.detail) select.value = e.detail.id;
+    });
+
+    // 移动端点击导航项后收起侧边栏（事件委托，绑定在文档上只注册一次）
+    document.addEventListener("click", function (e) {
+      var target = e.target;
+      if (!target || !target.closest) return;
+      if (!target.closest(".nav-item")) return;
+      var layout = document.getElementById("app-layout");
+      if (layout) layout.classList.remove("sidebar-open");
+    });
   }
 
   function renderTopbar(admin) {
@@ -143,9 +169,6 @@
     if (select) {
       select.value = Theme.getState().current || Theme.getState().defaultTheme || "light";
       select.addEventListener("change", function () { Theme.apply(select.value); });
-      document.addEventListener("themechange", function (e) {
-        select.value = e.detail.id;
-      });
     }
     var logoutBtn = header.querySelector("#logout-btn");
     if (logoutBtn) logoutBtn.addEventListener("click", function () { Auth.logout(); });
@@ -154,14 +177,6 @@
     if (toggle) {
       toggle.addEventListener("click", function () {
         document.getElementById("app-layout").classList.toggle("sidebar-open");
-      });
-    }
-    var aside = document.getElementById("app-sidebar");
-    if (aside) {
-      aside.addEventListener("click", function (e) {
-        if (e.target.closest(".nav-item")) {
-          document.getElementById("app-layout").classList.remove("sidebar-open");
-        }
       });
     }
   }
@@ -184,6 +199,7 @@
    */
   async function initLayout(options) {
     options = options || {};
+    bindGlobalListeners();
     // 1) 同步渲染骨架，保证侧边栏/顶栏始终可见
     safeSidebar(options.active);
     safeTopbar(null);
@@ -219,6 +235,7 @@
    */
   async function boot(options) {
     options = options || {};
+    bindGlobalListeners();
     safeSidebar(options.active);
     safeTopbar(null);
 

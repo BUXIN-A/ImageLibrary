@@ -35,6 +35,17 @@ API_ADDRESS_KEYS = ("api_base_url", "admin_api_base_url")
 FRONTEND_ADDRESS_KEYS = ("frontend_base_url",)
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """禁止跟随重定向，避免探测被引向其它（内网）地址。"""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        return None
+
+
+# 全局 opener：不跟随 3xx
+_opener = urllib.request.build_opener(_NoRedirectHandler)
+
+
 @dataclass
 class ProbeResult:
     """探测结果。
@@ -53,10 +64,13 @@ def _probe(url: str, expect_json: bool, timeout: float = PROBE_TIMEOUT) -> Probe
         url, headers={"User-Agent": "ImageLibrary-SiteCheck"}
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as resp:
+        with _opener.open(request, timeout=timeout) as resp:
             status = resp.status
             body = resp.read(8192)
     except urllib.error.HTTPError as exc:
+        # 3xx：地址可达（只是未跟随重定向），视为正常
+        if 300 <= exc.code < 400:
+            return ProbeResult(True, False, f"HTTP {exc.code}（重定向未跟随）")
         # 有 HTTP 响应但状态码异常：明确失败
         return ProbeResult(False, True, f"HTTP {exc.code}")
     except urllib.error.URLError as exc:
@@ -107,8 +121,13 @@ def clear_site_addresses(db: Session) -> list[tuple[str, str]]:
     return cleared
 
 
-def check_site_addresses(db: Session, timeout: float = PROBE_TIMEOUT) -> list[dict]:
+def check_site_addresses(
+    db: Session, timeout: float = PROBE_TIMEOUT, allow_clear: bool = True
+) -> list[dict]:
     """检测已配置的站点地址，按折中策略处理并写入通知。
+
+    ``allow_clear=False`` 时即使探测「明确失败」也只告警不清空配置
+    （启动自检使用该模式，避免因启动顺序/网络抖动误清空站点地址）。
 
     返回每项检测结果（含 key/label/value/ok/detail/cleared）。
     """
@@ -121,7 +140,7 @@ def check_site_addresses(db: Session, timeout: float = PROBE_TIMEOUT) -> list[di
         is_api = key in API_ADDRESS_KEYS
         result = probe_address(value, is_api, timeout=timeout)
         cleared = False
-        if not result.ok and result.explicit:
+        if not result.ok and result.explicit and allow_clear:
             # 明确失败：清空配置，回退自动推断
             set_setting(db, key, "")
             cleared = True
@@ -130,6 +149,15 @@ def check_site_addresses(db: Session, timeout: float = PROBE_TIMEOUT) -> list[di
                 LEVEL_ERROR,
                 CATEGORY_SITE,
                 f"{label}不可用，已清空并回退自动推断：{value}",
+                detail=result.detail,
+            )
+        elif not result.ok and result.explicit:
+            # 明确失败但处于「只告警」模式（启动自检）：保留配置
+            log(
+                db,
+                LEVEL_WARNING,
+                CATEGORY_SITE,
+                f"{label}检测失败（已保留配置，可手动清除）：{value}",
                 detail=result.detail,
             )
         elif not result.ok:
@@ -174,7 +202,8 @@ def run_startup_check(db: Optional[Session] = None) -> list[dict]:
     try:
         if not get_bool_setting(session, "site_check_on_startup", True):
             return []
-        return check_site_addresses(session)
+        # 启动自检只告警，不清空配置（避免启动顺序/网络抖动导致地址丢失）
+        return check_site_addresses(session, allow_clear=False)
     finally:
         if own_session:
             session.close()

@@ -134,7 +134,11 @@
       if (opts.disabled) {
         b.disabled = true;
       } else {
-        b.addEventListener("click", function () { onChange(targetPage); });
+        b.addEventListener("click", function () {
+          // 页码范围保护：避免请求 page<1 或 page>pages 得到空列表
+          if (targetPage < 1 || targetPage > pages || targetPage === page) return;
+          onChange(targetPage);
+        });
       }
       return b;
     }

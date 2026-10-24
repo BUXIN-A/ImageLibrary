@@ -29,6 +29,21 @@
     siteName: "我的图库"
   };
 
+  /** 共享的站点设置请求：主题与布局各自初始化时只请求一次。 */
+  var settingsPromise = null;
+
+  function loadSettings() {
+    if (settingsPromise) return settingsPromise;
+    settingsPromise = (async function () {
+      try {
+        return await API.get("/api/settings");
+      } catch (err) {
+        return null;
+      }
+    })();
+    return settingsPromise;
+  }
+
   function isKnown(id) {
     return THEME_IDS.indexOf(id) !== -1;
   }
@@ -74,7 +89,7 @@
     }
 
     try {
-      var settings = await API.get("/api/settings");
+      var settings = await loadSettings();
       if (settings && settings.site_name) {
         state.siteName = settings.site_name;
       }
@@ -94,6 +109,7 @@
     init: init,
     apply: apply,
     enabledThemes: enabledThemes,
+    loadSettings: loadSettings,
     getState: function () { return state; },
     getCurrent: function () { return state.current; },
     getThemes: function () { return enabledThemes(); }

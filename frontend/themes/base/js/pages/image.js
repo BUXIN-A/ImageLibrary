@@ -102,7 +102,9 @@
       await loadComments();
     } catch (err) {
       if (err.status === 401) {
-        UI.toast('请先登录后再评论', 'error');
+        // 令牌已失效：清理本地登录态，避免继续显示“已登录”的评论表单
+        if (window.UserSession) UserSession.clear();
+        UI.toast('登录已过期，请重新登录', 'error');
         renderFormSlot();
       } else {
         UI.toast(err.message || '发表失败', 'error');

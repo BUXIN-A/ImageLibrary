@@ -86,6 +86,8 @@
   function render() {
     if (!state.items.length) {
       els.tbody.innerHTML = '<tr><td colspan="7">' + UI.renderEmpty("没有符合条件的评论") + "</td></tr>";
+      // 空结果也要同步统计，避免保留上一次的「共 N 条」
+      els.summary.textContent = "共 0 条评论";
       updateSelectionUI();
       return;
     }

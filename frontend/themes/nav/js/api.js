@@ -138,6 +138,13 @@
       throw netErr;
     }
     if (!res.ok) {
+      // 登录态失效时清理本地用户令牌；分类解锁的 401 表示密码错误，不清理
+      if (res.status === 401 && !/\/unlock(?:\?|$)/.test(String(path || ''))) {
+        try {
+          if (window.UserSession) UserSession.clear();
+          document.dispatchEvent(new CustomEvent('userlogout'));
+        } catch (e) { /* ignore */ }
+      }
       throw await parseError(res);
     }
     return res;

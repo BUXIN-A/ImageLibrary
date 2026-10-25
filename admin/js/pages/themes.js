@@ -1,7 +1,7 @@
 /**
  * 主题设置：双标签管理「主题」与「主题配置」。
- * - 主题标签：展示基础/导航两套主题，支持启用。
- * - 主题配置标签：按主题管理预设（上传/删除/设为默认）与导航主题统计开关。
+ * - 主题标签：展示基础/导航两套主题，支持启用与下载内置预设。
+ * - 主题配置标签：仅管理当前启用主题的预设（上传/删除/设为默认）与导航主题统计开关。
  */
 (function () {
   "use strict";
@@ -27,7 +27,7 @@
     els.tabThemes = document.getElementById("tab-themes");
     els.tabConfig = document.getElementById("tab-config");
     els.themesList = document.getElementById("themes-list");
-    els.configThemeTabs = document.getElementById("config-theme-tabs");
+    els.configThemeSummary = document.getElementById("config-theme-summary");
     els.presetList = document.getElementById("preset-list");
     els.presetForm = document.getElementById("preset-form");
     els.presetFile = document.getElementById("preset-file");
@@ -71,6 +71,18 @@
       " · 共 " + themesWithNames().length + " 套主题";
   }
 
+  /** 内置预设下载按钮：两套主题均可下载，不受当前启用主题限制。 */
+  function presetDownloadButtons(theme) {
+    var presets = (state.data && state.data.presets && state.data.presets[theme.id]) || [];
+    return presets
+      .filter(function (preset) { return preset && preset.builtin; })
+      .map(function (preset) {
+        return '<button type="button" class="btn btn-ghost btn-sm" data-act="download" data-preset-id="' +
+          UI.escapeHtml(preset.id) + '">下载 ' + UI.escapeHtml(preset.name || preset.id) + "</button>";
+      })
+      .join("");
+  }
+
   function themeCardHtml(theme) {
     var preview = theme.preview_url
       ? '<img src="' + UI.escapeHtml(UI.mediaUrl(theme.preview_url)) + '" loading="lazy" alt="">'
@@ -92,7 +104,7 @@
           "</div>" +
           (theme.description ? '<div class="card-sub"><span>' + UI.escapeHtml(theme.description) + "</span></div>" : "") +
         "</div>" +
-        '<div class="card-actions">' + action + "</div>" +
+        '<div class="card-actions">' + action + presetDownloadButtons(theme) + "</div>" +
       "</div>"
     );
   }
@@ -107,14 +119,10 @@
     els.themesList.innerHTML = '<div class="image-grid">' + themes.map(themeCardHtml).join("") + "</div>";
   }
 
-  function renderConfigThemeTabs() {
-    if (!els.configThemeTabs) return;
-    var btns = els.configThemeTabs.querySelectorAll(".tab-btn");
-    Array.prototype.forEach.call(btns, function (btn) {
-      var id = btn.dataset.themeId;
-      btn.textContent = themeName(id);
-      btn.classList.toggle("active", id === state.configTheme);
-    });
+  function renderConfigSummary() {
+    if (!els.configThemeSummary) return;
+    els.configThemeSummary.textContent = "当前启用主题：" + themeName(state.configTheme) +
+      "（预设与统计仅对本主题生效）";
   }
 
   function presetRowHtml(preset) {
@@ -169,7 +177,7 @@
   function renderAll() {
     renderSummary();
     renderThemes();
-    renderConfigThemeTabs();
+    renderConfigSummary();
     renderPresets();
     renderNavStats();
   }
@@ -186,6 +194,7 @@
   function applyPayload(data) {
     if (!data || !Array.isArray(data.themes)) return false;
     state.data = data;
+    if (data.active_theme) state.configTheme = String(data.active_theme);
     renderAll();
     return true;
   }
@@ -214,6 +223,18 @@
       UI.toast("已启用「" + (theme.name || theme.id) + "」主题", "success");
     } catch (err) {
       UI.toast(err.message || "启用失败", "error");
+    }
+  }
+
+  async function downloadPreset(themeId, preset) {
+    try {
+      await API.downloadGet(
+        themePath(themeId) + "/presets/" + encodeURIComponent(preset.id) + "/download",
+        themeId + "-" + preset.id + ".css"
+      );
+      UI.toast("预设已下载", "success");
+    } catch (err) {
+      UI.toast(err.message || "下载失败", "error");
     }
   }
 
@@ -305,19 +326,6 @@
       btn.addEventListener("click", function () { switchTab(btn.dataset.tab); });
     });
 
-    if (els.configThemeTabs) {
-      els.configThemeTabs.addEventListener("click", function (e) {
-        var btn = e.target.closest(".tab-btn");
-        if (!btn) return;
-        var id = btn.dataset.themeId;
-        if (!id || id === state.configTheme) return;
-        state.configTheme = id;
-        renderConfigThemeTabs();
-        renderPresets();
-        renderNavStats();
-      });
-    }
-
     if (els.themesList) {
       els.themesList.addEventListener("click", function (e) {
         var btn = e.target.closest("button[data-act]");
@@ -325,6 +333,12 @@
         var card = btn.closest(".image-card");
         var theme = card && findTheme(card.dataset.id);
         if (!theme) return;
+        if (btn.dataset.act === "download") {
+          var presets = (state.data && state.data.presets && state.data.presets[theme.id]) || [];
+          var preset = presets.find(function (item) { return item.id === btn.dataset.presetId; });
+          if (preset) downloadPreset(theme.id, preset);
+          return;
+        }
         if (btn.dataset.act === "activate") activateTheme(theme);
       });
     }

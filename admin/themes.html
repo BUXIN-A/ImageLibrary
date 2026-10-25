@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>主题设置</title>
-  <link rel="stylesheet" href="themes/light.css?v=2.0.1">
-  <link rel="stylesheet" href="themes/dark.css?v=2.0.1">
-  <link rel="stylesheet" href="themes/ocean.css?v=2.0.1">
-  <link rel="stylesheet" href="themes/forest.css?v=2.0.1">
-  <link rel="stylesheet" href="themes/sunset.css?v=2.0.1">
-  <link rel="stylesheet" href="themes/sakura.css?v=2.0.1">
-  <link rel="stylesheet" href="css/base.css?v=2.0.1">
-  <link rel="stylesheet" href="css/layout.css?v=2.0.1">
-  <link rel="stylesheet" href="css/components.css?v=2.0.1">
+  <link rel="stylesheet" href="themes/light.css?v=2.1.0">
+  <link rel="stylesheet" href="themes/dark.css?v=2.1.0">
+  <link rel="stylesheet" href="themes/ocean.css?v=2.1.0">
+  <link rel="stylesheet" href="themes/forest.css?v=2.1.0">
+  <link rel="stylesheet" href="themes/sunset.css?v=2.1.0">
+  <link rel="stylesheet" href="themes/sakura.css?v=2.1.0">
+  <link rel="stylesheet" href="css/base.css?v=2.1.0">
+  <link rel="stylesheet" href="css/layout.css?v=2.1.0">
+  <link rel="stylesheet" href="css/components.css?v=2.1.0">
   <script>
     (function () {
       try {
@@ -47,13 +47,10 @@
 
         <section class="tab-panel hidden" id="tab-config">
           <div class="card">
-            <div class="card-header"><span>选择要配置的主题</span></div>
+            <div class="card-header"><span>当前启用主题</span></div>
             <div class="card-body">
-              <div class="tabs tabs-sm" id="config-theme-tabs">
-                <button type="button" class="tab-btn active" data-theme-id="base">基础</button>
-                <button type="button" class="tab-btn" data-theme-id="nav">导航</button>
-              </div>
-              <div class="form-hint">预设与统计配置按主题独立保存，每个主题至少保留一个预设。</div>
+              <div class="form-hint" id="config-theme-summary">加载中…</div>
+              <div class="form-hint">主题配置仅作用于当前启用主题。如需配置另一套主题，请先在「主题」标签中启用它。</div>
             </div>
           </div>
 
@@ -124,12 +121,12 @@
   </div>
   <div id="toast-root"></div>
 
-  <script src="js/config.js?v=2.0.1"></script>
-  <script src="js/api.js?v=2.0.1"></script>
-  <script src="js/auth.js?v=2.0.1"></script>
-  <script src="js/theme.js?v=2.0.1"></script>
-  <script src="js/ui.js?v=2.0.1"></script>
-  <script src="js/layout.js?v=2.0.1"></script>
-  <script src="js/pages/themes.js?v=2.0.1"></script>
+  <script src="js/config.js?v=2.1.0"></script>
+  <script src="js/api.js?v=2.1.0"></script>
+  <script src="js/auth.js?v=2.1.0"></script>
+  <script src="js/theme.js?v=2.1.0"></script>
+  <script src="js/ui.js?v=2.1.0"></script>
+  <script src="js/layout.js?v=2.1.0"></script>
+  <script src="js/pages/themes.js?v=2.1.0"></script>
 </body>
 </html>

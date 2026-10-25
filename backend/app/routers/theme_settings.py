@@ -51,6 +51,14 @@ def _preset_id_or_400(preset_id: str) -> str:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+def _ensure_theme_active(db: Session, theme_id: str) -> None:
+    """主题配置仅允许操作当前启用主题。"""
+    if service.get_active_theme(db) != theme_id:
+        raise HTTPException(
+            status_code=400, detail="主题配置仅支持当前启用主题，请先启用该主题"
+        )
+
+
 def _admin_payload(db: Session) -> dict:
     """管理端主题设置完整数据。"""
     active = service.get_active_theme(db)
@@ -62,7 +70,9 @@ def _admin_payload(db: Session) -> dict:
             "version": meta["version"],
             "active": meta["id"] == active,
             "preview_url": (
-                f"/api/theme/preview/{meta['id']}" if meta["has_preview"] else ""
+                f"/api/theme/preview/{meta['id']}?v={meta['version']}"
+                if meta["has_preview"]
+                else ""
             ),
         }
         for meta in service.list_themes()
@@ -99,7 +109,9 @@ def get_theme_preview(theme_id: str):
     path: Optional[Path] = service.preview_path(theme_id)
     if path is None:
         raise HTTPException(status_code=404, detail="预览图不存在")
-    return FileResponse(path, media_type="image/png")
+    return FileResponse(
+        path, media_type="image/png", headers={"Cache-Control": "no-cache"}
+    )
 
 
 # ---------------- 管理端接口 ----------------
@@ -129,6 +141,7 @@ async def upload_preset(
 ) -> dict:
     """上传预设 CSS：默认以文件名作为 id 与名称，可显式覆盖。"""
     theme = _theme_or_404(theme_id)
+    _ensure_theme_active(db, theme)
 
     stem = Path(file.filename or "").stem
     preset_id = (id or "").strip() or stem.lower()
@@ -154,6 +167,7 @@ def delete_preset(
 ) -> dict:
     """删除预设；每个主题至少保留一个。"""
     theme = _theme_or_404(theme_id)
+    _ensure_theme_active(db, theme)
     _preset_id_or_400(preset_id)
     try:
         service.delete_preset(db, theme, preset_id)
@@ -168,12 +182,31 @@ def set_default_preset(
 ) -> dict:
     """把预设设为该主题的默认预设。"""
     theme = _theme_or_404(theme_id)
+    _ensure_theme_active(db, theme)
     _preset_id_or_400(preset_id)
     try:
         service.set_default_preset(db, theme, preset_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _admin_payload(db)
+
+
+@admin_router.get("/{theme_id}/presets/{preset_id}/download")
+def download_preset(theme_id: str, preset_id: str, db: Session = Depends(get_db)):
+    """下载预设 CSS 文件（含未启用主题的内置预设）。"""
+    theme = _theme_or_404(theme_id)
+    _preset_id_or_400(preset_id)
+    if service.get_preset(db, theme, preset_id) is None:
+        raise HTTPException(status_code=404, detail="预设不存在")
+    path = service.preset_css_path(theme, preset_id)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="预设文件不存在")
+    return FileResponse(
+        path,
+        media_type="text/css",
+        filename=f"{theme}-{preset_id}.css",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @admin_router.put("/{theme_id}/config")
@@ -184,6 +217,7 @@ def update_theme_config(
 ) -> dict:
     """更新主题配置：默认预设；导航主题额外支持统计开关。"""
     theme = _theme_or_404(theme_id)
+    _ensure_theme_active(db, theme)
     data = payload.model_dump(exclude_unset=True)
     try:
         service.update_theme_config(

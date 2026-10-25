@@ -108,11 +108,9 @@
       return '<div class="empty-state" style="padding:26px 8px;"><p class="text-danger">上传失败</p></div>';
     }
     var image = result.image;
-    if (image.media_type === "video") {
-      return '<div class="media-placeholder">视频</div>';
-    }
     if (!image.thumb_url) {
-      return '<div class="media-placeholder">无缩略图</div>';
+      return '<div class="media-placeholder">' +
+        (image.media_type === "video" ? "视频" : "无缩略图") + "</div>";
     }
     return '<img src="' + UI.escapeHtml(UI.mediaUrl(image.thumb_url, image.media_token)) + '" loading="lazy" alt="">';
   }

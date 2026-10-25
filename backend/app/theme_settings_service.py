@@ -27,7 +27,7 @@ THEME_DESCRIPTIONS: dict[str, str] = {
     "base": "经典图库首页，沿用简洁的网格布局",
     "nav": "以导航入口为首页，提供分类与统计面板",
 }
-THEME_VERSION = "2.0.1"
+THEME_VERSION = "2.1.0"
 
 DEFAULT_PRESET_ID = "light"
 

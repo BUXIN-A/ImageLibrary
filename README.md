@@ -3,7 +3,7 @@
 <h1>ImageLibrary</h1>
 
 [![Docker Publish](https://github.com/BUXIN-A/ImageLibrary/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/BUXIN-A/ImageLibrary/actions/workflows/docker-publish.yml)
-[![Version](https://img.shields.io/badge/version-2.0.1-blue)](https://github.com/BUXIN-A/ImageLibrary/blob/main/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue)](https://github.com/BUXIN-A/ImageLibrary/blob/main/CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **面向公开访问的图片与视频图库：访客免登录浏览，管理员使用独立后台管理；支持一级分类、分类密码、受控媒体、两套前台主题、上传 Token 审核与 Docker 部署。**
@@ -20,7 +20,7 @@
 
 | 功能 | 说明 |
 | --- | --- |
-| 图片 + 视频 | 支持 JPG/PNG/GIF/WebP/BMP 与 MP4/M4V/MOV/WebM/OGV；视频使用原生播放器并支持 HTTP Range 拖动播放。 |
+| 图片 + 视频 | 支持 JPG/PNG/GIF/WebP/BMP 与 MP4/M4V/MOV/WebM/OGV；视频使用原生播放器并支持 HTTP Range 拖动播放，上传时自动截取内容帧作为封面，列表与详情播放器优先展示该封面。 |
 | 一级分类 | 分类最多一级，不存在的层级操作已移除；图片可属于一个分类或为「未分类」，删除分类后图片自动归为未分类。 |
 | 分类密码 | 可为分类设置、修改、清除访问密码；未解锁时该分类的列表、详情、下载、评论、分享与媒体文件均被服务端拒绝。 |
 | 受控媒体 | `/media` 与 `/thumbnails` 由后端按图片状态、分类密码与后台短时签名令牌授权，不再直连静态目录。 |
@@ -30,8 +30,8 @@
 | EXIF | 图片上传时提取拍摄时间、相机、镜头、ISO、光圈、快门、焦距、方向等，不读取 GPS；视频不提取 EXIF。 |
 | 分享链接 | 为图片生成唯一分享 token；加密分类的分享链接需先解锁。 |
 | 批量导出 | 前台与后台均可将所选内容打包为 ZIP，条目名经过路径穿越安全处理。 |
-| 两套前台主题 | `base`（经典图库首页）与 `nav`（导航首页 + 分类入口 + 统计面板）；主题目录自包含 HTML/CSS/JS，切换无需重启。 |
-| 主题预设 | 基础主题「明亮/暗夜」、导航主题「亮色/暗色」；后台可上传、移除、设为默认，每个主题至少保留一个预设。 |
+| 两套前台主题 | `base`（经典图库首页）与 `nav`（导航首页 + 分类入口 + 统计面板）；主题目录自包含 HTML/CSS/JS，切换无需重启，后台提供示例封面。 |
+| 主题预设 | 基础主题「明亮/暗夜」、导航主题「亮色/暗色」；仅当前启用主题可配置，支持上传、移除、设为默认与下载内置预设，每个主题至少保留一个预设。 |
 | 导航统计 | 导航主题首页可开关展示分类图片数、总图片数、总浏览数、总评论数、总下载数。 |
 | 用户与评论 | 普通用户注册/登录（本地账号、GitHub、通用 OAuth2），登录后评论；后台可管理用户与评论。 |
 | 站点设置 | 站点名称、SEO、favicon、robots、sitemap、评论开关、页脚与通知开关；站点地址使用独立二次校验流程。 |
@@ -170,7 +170,7 @@ docker compose -f docker-compose.deploy.yml up -d
 | --- | --- |
 | 后端 | Python 3.13、FastAPI、Uvicorn、SQLAlchemy 2.x、Pydantic / pydantic-settings、Alembic |
 | 数据 | SQLite、本地文件系统（原图/视频、缩略图、主题预设、favicon） |
-| 媒体 | Pillow、HTTP Range、ETag/304 |
+| 媒体 | Pillow、ffmpeg（imageio-ffmpeg）、HTTP Range、ETag/304 |
 | 认证 | PyJWT、bcrypt、GitHub OAuth、通用 OAuth2 |
 | 前端 | 原生 HTML / CSS / JavaScript 多页应用，无构建工具；两套自包含主题 |
 | 部署 | Docker、Docker Compose、GitHub Actions（amd64/arm64 GHCR 镜像） |
@@ -221,7 +221,7 @@ ImageLibrary/
 | 用户 | `POST /api/user/register`、`POST /api/user/login`、`GET /api/user/me` |
 | 管理 | `GET/POST /api/admin/images`、`POST /api/admin/images/batch`、`POST /api/admin/images/export`、`PATCH/DELETE /api/admin/images/{id}` |
 | 管理 | `POST/PATCH/DELETE /api/admin/folders`、`GET /api/admin/review`、`GET/POST /api/admin/tokens` |
-| 主题 | `GET /api/admin/theme-settings`、`PUT /api/admin/theme-settings/active`、`POST/DELETE /api/admin/theme-settings/{theme}/presets` |
+| 主题 | `GET /api/admin/theme-settings`、`PUT /api/admin/theme-settings/active`、`POST/DELETE /api/admin/theme-settings/{theme}/presets`、`GET .../presets/{preset}/download` |
 | 站点 | `GET/PUT /api/admin/site`、`POST /api/admin/site/address`、`GET/PUT /api/admin/login-settings` |
 | 其他 | `GET /api/admin/comments`、`GET /api/admin/users`、`GET /api/admin/stats`、`GET /api/admin/notifications` |
 
@@ -229,7 +229,7 @@ ImageLibrary/
 
 ## 升级与迁移
 
-> **升级（含 2.0.1）前请先备份 `data/` 目录。**
+> **升级（含 2.1.0）前请先备份 `data/` 目录。**
 
 ```bash
 # 停止服务后备份
@@ -256,6 +256,12 @@ python -m alembic upgrade head
 - 旧 6 套前台 CSS 主题与 ZIP 自定义主题不再加载；`data/themes/` 文件保留但忽略。
 - `/media`、`/thumbnails` 改为受控路由；非公开内容需要签名令牌。
 - 站点地址不能再通过通用站点设置接口写入，只能走专用地址弹窗流程。
+
+2.1.0 的升级注意：
+
+- 执行 `python -m pip install -r requirements.txt` 安装新增的 `imageio-ffmpeg`；系统已安装 ffmpeg 时优先使用系统版本。
+- 视频封面在升级后上传的视频上生效，历史视频不会自动补封面，仍显示视频占位图标。
+- 管理端主题配置仅能修改当前启用主题；如需配置另一套主题，请先在「主题」标签中启用它。
 
 2.0.1 的升级注意：
 

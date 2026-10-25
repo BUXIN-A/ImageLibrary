@@ -1,5 +1,5 @@
 /* 通用 UI 工具：Toast、格式化、空状态、分页、弹窗、图片卡片与详情渲染。
-   公开页面不展示原始文件名，视频使用占位封面与 <video> 渲染。 */
+   公开页面不展示原始文件名，视频优先使用内容帧封面（缺失时占位）与 <video> 渲染。 */
 (function () {
   'use strict';
 
@@ -260,7 +260,7 @@
     var html = '<article class="image-card' + (isVideo ? ' image-card--video' : '') + '" data-id="' + id + '">';
     html += '<div class="image-card__media">';
     html += '<a class="image-card__link" href="' + escapeHtml(href) + '" aria-label="' + escapeHtml(title) + '">';
-    if (isVideo || !thumb) {
+    if (!thumb) {
       html += renderMediaPlaceholder(isVideo ? 'video' : 'image');
     } else {
       html += '<img loading="lazy" src="' + escapeHtml(thumb) + '" alt="' + escapeHtml(title) + '">';
@@ -324,6 +324,9 @@
     var folderToken = opts.folderToken || '';
     var isVideo = !!image.is_video || image.media_type === 'video';
     var media = window.API.mediaUrl(image.url, { folderToken: folderToken });
+    var poster = image.thumb_url
+      ? window.API.mediaUrl(image.thumb_url, { folderToken: folderToken })
+      : '';
     var title = imageTitle(image);
 
     var downloadUrl = window.API.apiUrl('/api/images/' + encodeURIComponent(image.id) + '/download');
@@ -337,7 +340,8 @@
     var html = '<div class="detail">';
     html += '<div class="detail__media' + (isVideo ? ' detail__media--video' : '') + '">';
     if (isVideo) {
-      html += '<video class="detail__video" controls preload="metadata" src="' + escapeHtml(media) + '"></video>';
+      html += '<video class="detail__video" controls preload="metadata" src="' + escapeHtml(media) + '"' +
+        (poster ? ' poster="' + escapeHtml(poster) + '"' : '') + '></video>';
     } else {
       html += '<img src="' + escapeHtml(media) + '" alt="' + escapeHtml(title) + '">';
     }

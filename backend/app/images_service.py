@@ -3,9 +3,11 @@
 
 支持两类媒体：
 - 图片：用 Pillow 实际打开校验，生成 JPEG 缩略图并提取 EXIF；
-- 视频：读取文件头做容器签名校验，不生成缩略图（由前端直接播放）。
+- 视频：读取文件头做容器签名校验，并尽力用 ffmpeg 截取一帧作为封面。
 """
 import os
+import shutil
+import subprocess
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -19,6 +21,9 @@ from backend.app.config import settings
 _CHUNK_SIZE = 1024 * 1024
 # 视频容器签名校验所需的文件头长度（mp4 的 ftyp 位于 offset 4:8）
 _VIDEO_HEADER_SIZE = 12
+# 视频封面截取超时（秒）与优先尝试的时间点（秒）
+_VIDEO_THUMB_TIMEOUT = 20
+_VIDEO_THUMB_SEEK_SECONDS = 1.0
 
 # 视频扩展名 -> MIME（用于落库与媒体路由 Content-Type）
 _VIDEO_MIME_BY_EXT: dict[str, str] = {
@@ -104,6 +109,93 @@ def _validate_video_header(path: Path, ext: str) -> None:
 
     if not valid:
         raise ValueError("视频文件格式无效")
+
+
+def _ffmpeg_binary() -> Optional[str]:
+    """定位 ffmpeg：优先系统 PATH，其次 imageio-ffmpeg 自带二进制。"""
+    executable = shutil.which("ffmpeg")
+    if executable:
+        return executable
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:  # noqa: BLE001 - 未安装可选依赖时回退占位封面
+        return None
+
+
+def _run_ffmpeg_thumbnail(
+    executable: str, source: Path, target: Path, seek: Optional[float]
+) -> bool:
+    """调用 ffmpeg 从视频截取一帧写入目标 JPEG；成功返回 True。"""
+    size = max(64, int(settings.THUMBNAIL_SIZE))
+    command = [
+        executable,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+    ]
+    if seek is not None:
+        command += ["-ss", f"{seek:.3f}"]
+    command += [
+        "-i",
+        str(source),
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-vf",
+        f"scale={size}:{size}:force_original_aspect_ratio=decrease",
+        "-q:v",
+        "3",
+        str(target),
+    ]
+    try:
+        completed = subprocess.run(
+            command, capture_output=True, timeout=_VIDEO_THUMB_TIMEOUT, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    try:
+        return (
+            completed.returncode == 0
+            and target.is_file()
+            and target.stat().st_size > 0
+        )
+    except OSError:
+        return False
+
+
+def _process_video_file(
+    path: Path, filename: str, size: int, mime_type: str
+) -> dict:
+    """尽力截取视频内容帧作为封面；失败时保持空 ``thumb_name``。"""
+    thumb_name = f"{Path(filename).stem}_thumb.jpg"
+    thumb_path = settings.THUMBNAIL_DIR / thumb_name
+    info = {
+        "filename": filename,
+        "thumb_name": "",
+        "width": 0,
+        "height": 0,
+        "size": size,
+        "mime_type": mime_type,
+        "exif": None,
+    }
+
+    executable = _ffmpeg_binary()
+    if not executable:
+        return info
+
+    # 优先截取 1 秒处（跳过可能的纯黑片头），失败再从首帧重试
+    if _run_ffmpeg_thumbnail(executable, path, thumb_path, _VIDEO_THUMB_SEEK_SECONDS):
+        info["thumb_name"] = thumb_name
+    elif _run_ffmpeg_thumbnail(executable, path, thumb_path, None):
+        info["thumb_name"] = thumb_name
+    else:
+        _unlink(thumb_path)
+    return info
 
 
 def _first_value(sources: list[dict], tag_ids: tuple[int, ...]):
@@ -256,15 +348,9 @@ def process_upload_stream(
 
         if is_video:
             _validate_video_header(temp_path, ext)
-            info = {
-                "filename": filename,
-                "thumb_name": "",
-                "width": 0,
-                "height": 0,
-                "size": size,
-                "mime_type": _VIDEO_MIME_BY_EXT[ext],
-                "exif": None,
-            }
+            info = _process_video_file(
+                temp_path, filename, size, _VIDEO_MIME_BY_EXT[ext]
+            )
         else:
             info = _process_image_file(temp_path, filename, size)
 

@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-25
+
+主题配置聚焦与视频封面版本。
+
+### Added
+
+- **视频封面截取**：上传视频后使用 ffmpeg 尝试从 1 秒处截取一帧（失败时回退首帧）作为缩略图；未找到系统 ffmpeg 时自动使用 `imageio-ffmpeg` 自带二进制，仍失败则保留视频占位图标。
+- **主题示例封面**：为基础与导航两套主题补充 `preview.png` 示例截图，后台主题卡片直接展示。
+- **内置预设下载**：后台主题卡片支持下载每套主题的内置预设 CSS；新增管理接口 `GET /api/admin/theme-settings/{theme}/presets/{preset}/download`。
+- **视频封面展示**：前台与后台图片列表在视频存在封面时展示封面帧，并保留「视频」标识；前台详情播放器使用该封面作为 `poster`。
+
+### Changed
+
+- **主题配置仅针对当前启用主题**：管理端「主题配置」标签不再提供主题切换，只展示当前启用主题的预设与导航统计；预设/配置写接口对非启用主题返回 400。
+- **主题版本与静态资源版本参数**升级为 2.1.0。
+- `requirements.txt` 新增 `imageio-ffmpeg`，用于没有系统 ffmpeg 的环境。
+
+### Upgrade Notes
+
+- 升级后请执行 `python -m pip install -r requirements.txt` 安装 `imageio-ffmpeg`。
+- 系统已安装 ffmpeg 时优先使用系统版本；容器镜像会自动使用 `imageio-ffmpeg` 内置二进制。
+- 视频封面仅在成功截帧时生成，历史视频不会自动补封面。
+- 主题配置现在需要先启用对应主题才能修改。
+
 ## [2.0.1] - 2026-10-25
 
 安全加固与健壮性版本：修复代码审查发现的全部可证实问题，并补上配置/迁移的防御性处理。
@@ -233,7 +257,8 @@
 - 一键启动三服务（`run.py`）与 Docker 部署（`Dockerfile`、`docker-compose.yml`）。
 - GitHub Actions 自动构建 amd64/arm64 镜像并推送到 GHCR；`docker-compose.deploy.yml` 支持服务器零构建部署。
 
-[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/BUXIN-A/ImageLibrary/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/BUXIN-A/ImageLibrary/compare/v1.2.1...v1.3.0

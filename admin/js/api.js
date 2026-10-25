@@ -175,23 +175,25 @@
   }
 
   /**
-   * 下载类接口：POST 后把响应当作文件保存。
+   * 下载类接口：按指定方法请求并把响应当作文件保存。
+   * @param {string} method HTTP 方法
    * @param {string} path 接口路径
-   * @param {object} body 请求体
+   * @param {object|null} body 请求体（GET 传 null）
    * @param {string} [fallbackName] 无法从响应头取文件名时的默认名
    */
-  async function download(path, body, fallbackName) {
-    var headers = { "Content-Type": "application/json" };
+  async function fetchFile(method, path, body, fallbackName) {
+    var headers = {};
     var token = getToken();
     if (token) headers["Authorization"] = "Bearer " + token;
+    var fetchOptions = { method: method, headers: headers };
+    if (body !== null && body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      fetchOptions.body = JSON.stringify(body);
+    }
 
     var res;
     try {
-      res = await fetch(buildUrl(path), {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(body || {})
-      });
+      res = await fetch(buildUrl(path), fetchOptions);
     } catch (err) {
       throw new Error("网络请求失败，请确认后端服务已启动");
     }
@@ -231,6 +233,16 @@
     }, 1500);
   }
 
+  /** POST 下载（如批量导出）。 */
+  function download(path, body, fallbackName) {
+    return fetchFile("POST", path, body || {}, fallbackName);
+  }
+
+  /** GET 下载（如预设 CSS 文件）。 */
+  function downloadGet(path, fallbackName) {
+    return fetchFile("GET", path, null, fallbackName);
+  }
+
   window.API = {
     base: API_BASE,
     getToken: getToken,
@@ -252,6 +264,7 @@
     },
     postForm: postForm,
     postFormWithProgress: postFormWithProgress,
-    download: download
+    download: download,
+    downloadGet: downloadGet
   };
 })();
